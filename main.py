@@ -23,6 +23,9 @@ def main():
                                   'Затем выбрать таблицу, которую используешь в качестве <i>Inbox</i>',
                          reply_markup=buttons.start_buttons(), parse_mode='HTML')
 
+
+
+
     @bot.message_handler(content_types=['text', 'photo'])
     def txt_msg(message):
         user_id = message.chat.id
@@ -35,6 +38,9 @@ def main():
             if call.back == 'property':
                 bot.send_message(user_id, 'зачем кликаешь тут еще ниче не работает')
     bot.polling(none_stop=True)
+
+
+
 
 if '__main__' == __name__:
     os_type = platform.system()
