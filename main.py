@@ -34,6 +34,7 @@ def main():
         if db_actions.user_is_existed(user_id):
             if call.back == 'property':
                 bot.send_message(user_id, 'зачем кликаешь тут еще ниче не работает')
+                # bot.send_invoice(user_id, 'Тестовый инвойс', 'тестовый инвойс', 'test_invoice', provider_token=pay, currency='RUB', prices=[types.LabeledPrice('Оплата товара', 100 * 100)])
     bot.polling(none_stop=True)
 
 if '__main__' == __name__:
