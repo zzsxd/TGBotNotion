@@ -45,7 +45,10 @@ def main():
                         bot.send_message(user_id, 'Лимит успешно выдан')
                 case 1:  # выдать подписку
                     if user_input is not None:
-                        bot.send_message(user_id, 'Подписка успешна выдана')
+                        bot.send_message(user_id, 'Введите дату (в формате "тут должен быть формат")')
+                        temp_user_data.temp_data(user_id)[user_id][0] = 2
+                case 2: # выдать подписку уже с датой
+                    bot.send_message(user_id, 'Подписка успешна выдана')
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback(call):
