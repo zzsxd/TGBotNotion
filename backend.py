@@ -77,3 +77,14 @@ class DbAct:
         else:
             self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ?, notes_count = ? WHERE nick_name = ?',
                                (date, sub_type, notes, nick_name))
+
+    def update_notion_token(self, notion_token, user_id):
+        self.__db.db_write('UPDATE users SET notion_token = ? WHERE user_id = ?', (notion_token, user_id))
+
+    def update_notion_db(self, user_id, data):
+        self.__db.db_write('UPDATE users SET db_info = ? WHERE user_id = ?', (json.dumps(data), user_id))
+
+    def get_notion_db(self, user_id):
+        data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))
+        if len(data) > 0:
+            return json.loads(data[0][0])

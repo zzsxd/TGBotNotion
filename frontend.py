@@ -39,3 +39,10 @@ class Bot_inline_btns:
         z = types.InlineKeyboardButton('30 запросов на месяц', callback_data='cnt3')
         self.__markup.add(f, s, t, z)
         return self.__markup
+
+    def notion_db_btns(self, names):
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for index, i in enumerate(names):
+            z = types.InlineKeyboardButton(i, callback_data=f'notions_dbs{index}')
+            markup.add(z)
+        return markup

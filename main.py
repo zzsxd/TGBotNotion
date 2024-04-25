@@ -30,6 +30,36 @@ def give_sub(user_id, nick_name, sub_type):
     bot.send_message(user_id, 'Операция успешно завершена')
 
 
+def add_sub(user_id, sub_type):
+    match sub_type:
+        case '0':
+            db_actions.give_subscription(user_id, time.time()+2629746, 0)
+        case '1':
+            db_actions.give_subscription(user_id, time.time() + 15778476, 1)
+        case '2':
+            db_actions.give_subscription(user_id, time.time() + 31556952, 2)
+        case '3':
+            db_actions.give_subscription(user_id, time.time() + 2629746, 3, 30)
+
+
+def choose_notion_db(user_id):
+    buttons = Bot_inline_btns()
+    names = list()
+    data = db_actions.get_notion_db(user_id)
+    for i in data:
+        names.append(i[1])
+    print(names)
+    bot.send_message(user_id, 'Выбери базу', reply_markup=buttons.notion_db_btns(names))
+
+
+def get_notion_links(user_id, data):
+    out = list()
+    for i in data['results']:
+        out.append([i['id'], i['properties']['title']['title'][0]['plain_text'], i['url']])
+    db_actions.update_notion_db(user_id, out)
+    choose_notion_db(user_id)
+
+
 def main():
     @bot.message_handler(commands=['start', 'admin'])
     def start_msg(message):
@@ -141,13 +171,7 @@ def main():
                                              provider_token=config.get_config()['payment_api'], currency='RUB',
                                              prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
             if call.data == 'done':
-                client_id = "c15749b7-42af-4ad0-a33f-c9bff1b85f68"
-                client_secret = "secret_QubBRwsJl8jCit5YapALs08zUXUlBka8cHMWtDXwWMF"
-                redirect_uri = "https://t.me/nbnotesbot"
-
-                # Закодируйте учетные данные в формате base64
-                encoded = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("utf-8")
-
+                encoded = base64.b64encode(f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode("utf-8")).decode("utf-8")
                 headers = {
                     "Accept": "application/json",
                     "Content-Type": "application/json",
@@ -155,16 +179,15 @@ def main():
                 }
                 body = {
                     "grant_type": "authorization_code",
-                    "code": "0311105c-4a8d-45ba-b1bf-e47c210b1666",
-                    "redirect_uri": redirect_uri
+                    "code": "0349f1cf-4a44-441f-ade5-2efcafa8eae2",
+                    "redirect_uri": config.get_config()['notion_redirect_uri']
                 }
-
                 # Отправьте запрос на сервер авторизации Notion
                 r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
                 print('status-code: ', r.status_code)
                 print(r.json())
                 notion_token = r.json()['access_token']
-                print(notion_token)
+                db_actions.update_notion_token(notion_token, user_id)
                 if r.status_code == 200:
                     bot.send_message(user_id, '<b>Авторизация успешна!</b>\n\n'
                                               'Теперь ты можешь делать заметки', parse_mode='HTML')
@@ -179,8 +202,7 @@ def main():
                     }
 
                     response = requests.post(url, json=payload, headers=headers)
-                    print(
-                        response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
+                    get_notion_links(user_id, response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
 
                     database_data = response.json()['results']
                     notion_database_id = database_data[0]['id']
@@ -230,10 +252,20 @@ def main():
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
                                       'Введите /start', parse_mode='HTML')
 
+    @bot.shipping_query_handler(func=lambda query: True)
+    def shipping(shipping_query):
+        bot.answer_shipping_query(shipping_query.id, ok=True, shipping_options=[])
+
+    @bot.pre_checkout_query_handler(func=lambda query: True)
+    def checkout(pre_checkout_query):
+        bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
     @bot.message_handler(content_types=['successful_payment'])
     def got_payment(message):
-        print(message)
-        bot.send_message(message.chat.id, "Спасибо за покупку!")
+        user_id = message.from_user.id
+        data = message.successful_payment.invoice_payload
+        add_sub(user_id, data)
+        bot.send_message(user_id, "Спасибо за покупку!")
 
     bot.polling(none_stop=True)
 
