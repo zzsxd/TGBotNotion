@@ -11,8 +11,9 @@ class TempUserData:
 
     def temp_data(self, user_id):
         if user_id not in self.__user_data.keys():
-            self.__user_data.update({user_id: [None, [None, None, None, None, None, None, None], None]})
+            self.__user_data.update({user_id: [None, None]})
         return self.__user_data
+
 
 class DbAct:
     def __init__(self, db, config, path_xlsx):
@@ -29,8 +30,8 @@ class DbAct:
             else:
                 is_admin = False
             self.__db.db_write(
-                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin) VALUES (?, ?, ?, ?, ?)',
-                (user_id, first_name, last_name, nick_name, is_admin))
+                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3))
 
     def user_is_existed(self, user_id):
         data = self.__db.db_read('SELECT count(*) FROM users WHERE user_id = ?', (user_id,))
@@ -49,3 +50,30 @@ class DbAct:
             else:
                 status = False
             return status
+
+    def check_subscription(self, user_id):
+        data = self.__db.db_read('SELECT exp_date, notes_count, subscription_type FROM users WHERE user_id = ?', (user_id,))
+        if len(data) > 0:
+            if data[0][0] > time.time() and data[0][1] > 0:
+                if data[0][2] == 3 and data[0][1] > 0:
+                    return True
+                elif data[0][2] != 3:
+                    return True
+            elif self.user_is_admin(user_id):
+                return True
+
+    def get_eol(self, user_id):
+        return self.__db.db_read('SELECT exp_date, notes_count, subscription_type FROM users WHERE user_id = ?', (user_id, ))[0]
+
+    def update_subscription_time(self, user_nick, times):
+        self.__db.db_write('UPDATE users SET exp_date = ? WHERE nick_name = ?', (times, user_nick))
+
+    def update_subscription_notes(self, user_nick, notes_count):
+        self.__db.db_write('UPDATE users SET notes_count = ? WHERE nick_name = ?', (notes_count, user_nick))
+
+    def give_subscription(self, nick_name, date, sub_type, notes=0):
+        if notes == 0:
+            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ? WHERE nick_name = ?', (date, sub_type, nick_name))
+        else:
+            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ?, notes_count = ? WHERE nick_name = ?',
+                               (date, sub_type, notes, nick_name))

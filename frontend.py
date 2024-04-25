@@ -18,10 +18,24 @@ class Bot_inline_btns:
         self.__markup.add(l, sub)
         return self.__markup
 
+    def actions_btns(self):
+        d1 = types.InlineKeyboardButton('Время истечения подписки', callback_data='restrict0')
+        d2 = types.InlineKeyboardButton('Количество заметок', callback_data='restrict1')
+        self.__markup.add(d1, d2)
+        return self.__markup
+
     def payment_btn(self):
-        f = types.InlineKeyboardButton('1 месяц - 299₽', callback_data='month')
-        s = types.InlineKeyboardButton('6 месяцев - 1399₽', callback_data='sixmonths')
-        t = types.InlineKeyboardButton('12 месяцев - 2599₽', callback_data='oneyear')
-        z = types.InlineKeyboardButton('30 запросов на месяц - 99₽', callback_data='zapros')
+        f = types.InlineKeyboardButton('1 месяц - 299₽', callback_data='subscription0')
+        s = types.InlineKeyboardButton('6 месяцев - 1399₽', callback_data='subscription1')
+        t = types.InlineKeyboardButton('12 месяцев - 2599₽', callback_data='subscription2')
+        z = types.InlineKeyboardButton('30 запросов на месяц - 99₽', callback_data='subscription3')
+        self.__markup.add(f, s, t, z)
+        return self.__markup
+
+    def cnt_btn(self):
+        f = types.InlineKeyboardButton('1 месяц', callback_data='cnt0')
+        s = types.InlineKeyboardButton('6 месяцев', callback_data='cnt1')
+        t = types.InlineKeyboardButton('12 месяцев', callback_data='cnt2')
+        z = types.InlineKeyboardButton('30 запросов на месяц', callback_data='cnt3')
         self.__markup.add(f, s, t, z)
         return self.__markup

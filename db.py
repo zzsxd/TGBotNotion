@@ -22,6 +22,9 @@ class DB:
             last_name TEXT,
             nick_name TEXT,
             is_admin BOOL,
+            exp_date INTEGER,
+            notes_count INTEGER,
+            subscription_type INTEGER,
             UNIQUE(user_id)
             )
             ''')

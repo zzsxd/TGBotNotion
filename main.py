@@ -1,6 +1,7 @@
 import base64
 import os
 import platform
+import time
 import types
 from threading import Lock
 import json
@@ -14,6 +15,19 @@ from db import DB
 from frontend import Bot_inline_btns
 
 config_name = 'secrets.json'
+
+
+def give_sub(user_id, nick_name, sub_type):
+    match sub_type:
+        case 0:
+            db_actions.give_subscription(nick_name, time.time()+2629746, 0)
+        case 1:
+            db_actions.give_subscription(nick_name, time.time() + 15778476, 1)
+        case 2:
+            db_actions.give_subscription(nick_name, time.time() + 31556952, 2)
+        case 3:
+            db_actions.give_subscription(nick_name, time.time() + 2629746, 3, 30)
+    bot.send_message(user_id, 'Операция успешно завершена')
 
 
 def main():
@@ -37,25 +51,95 @@ def main():
     def txt_msg(message):
         user_id = message.chat.id
         user_input = message.text
+        button = Bot_inline_btns()
         code = temp_user_data.temp_data(user_id)[user_id][0]
         if db_actions.user_is_existed(user_id):
             match code:
                 case 0:  # выдать лимит
                     if user_input is not None:
-                        bot.send_message(user_id, 'Лимит успешно выдан')
+                        temp_user_data.temp_data(user_id)[user_id][1] = user_input
+                        temp_user_data.temp_data(user_id)[user_id][0] = 3
+                        bot.send_message(user_id, 'Что Вы хотите изменить?', reply_markup=button.actions_btns())
+                    else:
+                        bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
                 case 1:  # выдать подписку
                     if user_input is not None:
-                        bot.send_message(user_id, 'Введите дату (в формате "тут должен быть формат")')
+                        temp_user_data.temp_data(user_id)[user_id][1] = user_input
                         temp_user_data.temp_data(user_id)[user_id][0] = 2
-                case 2: # выдать подписку уже с датой
-                    bot.send_message(user_id, 'Подписка успешна выдана')
+                        bot.send_message(user_id, 'Выберите тип подписки', reply_markup=button.cnt_btn())
+                    else:
+                        bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
+                case 4:
+                    try:
+                        db_actions.update_subscription_time(temp_user_data.temp_data(user_id)[user_id][1], datetime.strptime(user_input, '%d-%m-%Y %H:%M').timestamp())
+                        temp_user_data.temp_data(user_id)[user_id][0] = None
+                        bot.send_message(user_id, 'Операция успешно завершена')
+                    except:
+                        bot.send_message(user_id, 'неправильный формат даты, попробуйте ещё раз')
+                case 5:
+                    try:
+                        db_actions.update_subscription_notes(temp_user_data.temp_data(user_id)[user_id][1], int(user_input))
+                        temp_user_data.temp_data(user_id)[user_id][0] = None
+                        bot.send_message(user_id, 'Операция успешно завершена')
+                    except:
+                        bot.send_message(user_id, 'это не число, попробуйте ещё раз')
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback(call):
         user_id = call.message.chat.id
         button = Bot_inline_btns()
-        # exp_date = db_actions.get_exp_date(user_id) # узнать до какого времени подписка
         if db_actions.user_is_existed(user_id):
+            code = temp_user_data.temp_data(user_id)[user_id][0]
+            if db_actions.user_is_admin(user_id):
+                if call.data == 'givelimit':
+                    temp_user_data.temp_data(user_id)[user_id][0] = 0
+                    bot.send_message(user_id, 'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать лимит',
+                                     parse_mode='HTML')
+                elif call.data == 'givesub':
+                    temp_user_data.temp_data(user_id)[user_id][0] = 1
+                    bot.send_message(user_id,
+                                     'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать подписку',
+                                     parse_mode='HTML')
+                elif call.data[:8] == 'restrict' and code == 3:
+                    match call.data[8:]:
+                        case '0':
+                            temp_user_data.temp_data(user_id)[user_id][0] = 4
+                            bot.send_message(user_id, 'Введите новую дату истечения подписки в формате (31-07-1999 15:50)')
+                        case '1':
+                            temp_user_data.temp_data(user_id)[user_id][0] = 5
+                            bot.send_message(user_id, 'Введите новое количество доступных заметок')
+                elif call.data[:3] == 'cnt' and code == 2:
+                    give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
+            if db_actions.check_subscription(user_id):
+                if call.data == 'sub':
+                    subsc = db_actions.get_eol(user_id)
+                    if subsc[2] == 3:
+                        bot.send_message(user_id, 'Выберите подписку!\n\n'
+                                                  f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}\n Заметок осталось: {subsc[1]}',
+                                         reply_markup=button.payment_btn())
+                    else:
+                        bot.send_message(user_id, 'Выберите подписку!\n\n'
+                                                  f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}',
+                                         reply_markup=button.payment_btn())
+                elif call.data[:12] == 'subscription':
+                    match call.data[12:]:
+                        case '0':
+                            bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', '0',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
+                        case '1':
+                            bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', '1',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
+                        case '2':
+                            bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', '2',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB',
+                                             prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
+                        case '3':
+                            bot.send_invoice(user_id, '30 запросов на 30 дней - 1399₽', 'покупка у Notion Bot', '3',
+                                             provider_token=config.get_config()['payment_api'], currency='RUB',
+                                             prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
             if call.data == 'done':
                 client_id = "c15749b7-42af-4ad0-a33f-c9bff1b85f68"
                 client_secret = "secret_QubBRwsJl8jCit5YapALs08zUXUlBka8cHMWtDXwWMF"
@@ -142,45 +226,13 @@ def main():
                 elif r.status_code != 200:
                     bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
                                               'Попробуйте еще раз!', parse_mode='HTML')
-            elif call.data == 'sub':
-                bot.send_message(user_id, 'Выберите подписку!\n\n'
-                                          f'Ваша подписка доступна до: сюда 144 лайн', reply_markup=button.payment_btn())
-                # {datetime.utcfromtimestamp(exp_date).strftime("%Y-%m-%d %H:%M")} # в 143 лайн
-            elif call.data == 'month':
-                bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', 'invoice', provider_token=pay,
-                                 currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
-            elif call.data == 'sixmonth':
-                bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', 'invoice', provider_token=pay,
-                                 currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
-            elif call.data == 'oneyear':
-                bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', 'invoice', provider_token=pay,
-                                 currency='RUB', prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
-            elif call.data == 'zapros':
-                bot.send_invoice(user_id, '30 запросов на 30 дней - 1399₽', 'покупка у Notion Bot', 'invoice',
-                                 provider_token=pay, currency='RUB',
-                                 prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
-            elif call.data == 'givelimit':
-                bot.send_message(user_id, 'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать лимит',
-                                 parse_mode='HTML')
-                temp_user_data.temp_data(user_id)[user_id][0] = 0
-            elif call.data == 'givesub':
-                bot.send_message(user_id, 'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать подписку',
-                                 parse_mode='HTML')
-                temp_user_data.temp_data(user_id)[user_id][0] = 1
-            else:
-                bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
-                                          'Введите /start', parse_mode='HTML')
-
-    @bot.shipping_query_handler(func=lambda query: True)
-    def shipping(shipping_query):
-        bot.answer_shipping_query(shipping_query.id, ok=True, shipping_options=[])
-
-    @bot.pre_checkout_query_handler(func=lambda query: True)
-    def checkout(pre_checkout_query):
-        bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+        else:
+            bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
+                                      'Введите /start', parse_mode='HTML')
 
     @bot.message_handler(content_types=['successful_payment'])
     def got_payment(message):
+        print(message)
         bot.send_message(message.chat.id, "Спасибо за покупку!")
 
     bot.polling(none_stop=True)
@@ -193,6 +245,5 @@ if '__main__' == __name__:
     temp_user_data = TempUserData()
     db = DB(config.get_config()['db_file_name'], Lock())
     db_actions = DbAct(db, config, config.get_config()['xlsx_path'])
-    pay = config.get_config()['payment_api']
     bot = telebot.TeleBot(config.get_config()['tg_api'])
     main()
