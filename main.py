@@ -2,7 +2,7 @@ import base64
 import os
 import platform
 from threading import Lock
-
+import json
 import requests
 import telebot
 
@@ -52,20 +52,80 @@ def main():
                 }
                 body = {
                     "grant_type": "authorization_code",
-                    "code": "0367dcee-8208-461e-9c46-517ad95eeb71",
+                    "code": "037a38e6-6b7b-466d-b598-c67cbdddfd09",
                     "redirect_uri": redirect_uri
                 }
 
                 # Отправьте запрос на сервер авторизации Notion
                 r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
                 print('status-code: ', r.status_code)
+                print(r.json())
+                notion_token = r.json()['access_token']
+                print(notion_token)
                 if r.status_code == 200:
                     bot.send_message(user_id, '<b>Авторизация успешна!</b>\n\n'
                                               'Теперь ты можешь делать заметки', parse_mode='HTML')
-                elif r.status_code == 400 or r.status_code == 401:
-                    bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
-                                              'Попробуйте еще раз!', parse_mode='HTML')
-                # bot.send_invoice(user_id, 'Тестовый инвойс', 'тестовый инвойс', 'test_invoice', provider_token=pay, currency='RUB', prices=[types.LabeledPrice('Оплата товара', 100 * 100)])
+                    url = "https://api.notion.com/v1/search"
+
+                    payload = {"page_size": 100}
+                    headers = {
+                        "accept": "application/json",
+                        "Notion-Version": "2022-06-28",
+                        "content-type": "application/json",
+                        "authorization": f"Bearer {notion_token}"
+                    }
+
+                    response = requests.post(url, json=payload, headers=headers)
+                    print(response.json()) # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
+
+                    database_data = response.json()['results']
+                    notion_database_id = database_data[0]['id']
+
+                    example_data = {
+                        "handle": "@SomeHandle",
+                        "tweet": "Here is a tweet"
+                    }
+                    headers = {
+                        'Authorization': 'Bearer ' + notion_token,
+                        'Content-Type': 'application/json',
+                        'Notion-Version': '2021-08-16'
+                    }
+
+                    payload = {
+                        'parent': {'database_id': notion_database_id},
+                        'properties': {
+                            'title': {
+                                'title': [
+                                    {
+                                        'text': {
+                                            'content': example_data['handle']
+                                        }
+                                    }
+                                ]
+                            },
+                            'tweet': {
+                                'rich_text': [
+                                    {
+                                        'type': 'text',
+                                        'text': {
+                                            'content': example_data['tweet']
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+
+                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                             data=json.dumps(payload))
+
+                elif r.status_code != 200:
+                        bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
+                                                  'Попробуйте еще раз!', parse_mode='HTML')
+                    # bot.send_invoice(user_id, 'Тестовый инвойс', 'тестовый инвойс', 'test_invoice', provider_token=pay, currency='RUB', prices=[types.LabeledPrice('Оплата товара', 100 * 100)])
+            else:
+                bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
+                                          'Введите /start', parse_mode='HTML')
 
     bot.polling(none_stop=True)
 
