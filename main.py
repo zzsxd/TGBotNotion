@@ -167,9 +167,9 @@ def main():
                                              currency='RUB',
                                              prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
                         case '3':
-                            bot.send_invoice(user_id, '30 запросов на 30 дней - 1399₽', 'покупка у Notion Bot', '3',
+                            bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
                                              provider_token=config.get_config()['payment_api'], currency='RUB',
-                                             prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
+                                             prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
             if call.data == 'done':
                 encoded = base64.b64encode(f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode("utf-8")).decode("utf-8")
                 headers = {
