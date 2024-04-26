@@ -78,6 +78,13 @@ class DbAct:
             self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ?, notes_count = ? WHERE nick_name = ?',
                                (date, sub_type, notes, nick_name))
 
+    def give_subscription_ud(self, user_id, date, sub_type, notes=0):
+        if notes == 0:
+            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ? WHERE user_id = ?', (date, sub_type, user_id))
+        else:
+            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ?, notes_count = ? WHERE user_id = ?',
+                               (date, sub_type, notes, user_id))
+
     def update_notion_token(self, notion_token, user_id):
         self.__db.db_write('UPDATE users SET notion_token = ? WHERE user_id = ?', (notion_token, user_id))
 
