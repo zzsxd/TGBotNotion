@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../PetClinicBot/.idea/botpetcliniс.iml" filepath="$PROJECT_DIR$/../PetClinicBot/.idea/botpetcliniс.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/noticebot.iml" filepath="$PROJECT_DIR$/.idea/noticebot.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/NotionBot.iml" filepath="$PROJECT_DIR$/.idea/NotionBot.iml" />
     </modules>
   </component>
 </project>
