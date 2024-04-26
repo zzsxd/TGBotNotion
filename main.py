@@ -73,9 +73,19 @@ def main():
                                       'Для начала тебе нужно <b>авторизоваться</b>\n\n'
                                       'Затем выбрать таблицу, которую используешь в качестве <i>Inbox</i>',
                              reply_markup=buttons.start_buttons(), parse_mode='HTML')
+        elif command[:5] == 'start':
+            temp_user_data.temp_data(user_id)[user_id][2] = command[11:]
+            print(command[11:])
         elif db_actions.user_is_admin(user_id):
             if command == 'admin':
                 bot.send_message(user_id, 'Вы успешно зашли в админ-панель!', reply_markup=buttons.admin_btns())
+
+    @bot.message_handler(func=lambda message: True)
+    def handle_authorization_code(message):
+        # Extract the authorization code from the message text
+        code = message.text.strip()
+        # Use the authorization code to obtain an access token (not shown in this example)
+        bot.reply_to(message, f'Authorization code received: {code}')
 
     @bot.message_handler(content_types=['text', 'photo'])
     def txt_msg(message):
