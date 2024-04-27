@@ -95,3 +95,10 @@ class DbAct:
         data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))
         if len(data) > 0:
             return json.loads(data[0][0])
+
+    def get_db_notion_id(self, user_id, db_name):
+        data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))[0][0]
+        data = json.loads(data)
+        for i in data:
+            if i[1] == db_name:
+                return i[0]

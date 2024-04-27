@@ -20,7 +20,7 @@ config_name = 'secrets.json'
 def give_sub(user_id, nick_name, sub_type):
     match sub_type:
         case 0:
-            db_actions.give_subscription(nick_name, time.time()+2629746, 0)
+            db_actions.give_subscription(nick_name, time.time() + 2629746, 0)
         case 1:
             db_actions.give_subscription(nick_name, time.time() + 15778476, 1)
         case 2:
@@ -33,7 +33,7 @@ def give_sub(user_id, nick_name, sub_type):
 def add_sub(user_id, sub_type):
     match sub_type:
         case '0':
-            db_actions.give_subscription(user_id, time.time()+2629746, 0)
+            db_actions.give_subscription(user_id, time.time() + 2629746, 0)
         case '1':
             db_actions.give_subscription(user_id, time.time() + 15778476, 1)
         case '2':
@@ -54,8 +54,10 @@ def choose_notion_db(user_id):
 
 def get_notion_links(user_id, data):
     out = list()
+    print(data)
     for i in data['results']:
-        out.append([i['id'], i['properties']['title']['title'][0]['plain_text'], i['url']])
+        if i["object"] == "database":
+            out.append([i['id'], i['title'][0]['plain_text'], i['url']])
     db_actions.update_notion_db(user_id, out)
     choose_notion_db(user_id)
 
@@ -111,14 +113,16 @@ def main():
                         bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
                 case 4:
                     try:
-                        db_actions.update_subscription_time(temp_user_data.temp_data(user_id)[user_id][1], datetime.strptime(user_input, '%d-%m-%Y %H:%M').timestamp())
+                        db_actions.update_subscription_time(temp_user_data.temp_data(user_id)[user_id][1],
+                                                            datetime.strptime(user_input, '%d-%m-%Y %H:%M').timestamp())
                         temp_user_data.temp_data(user_id)[user_id][0] = None
                         bot.send_message(user_id, 'Операция успешно завершена')
                     except:
                         bot.send_message(user_id, 'неправильный формат даты, попробуйте ещё раз')
                 case 5:
                     try:
-                        db_actions.update_subscription_notes(temp_user_data.temp_data(user_id)[user_id][1], int(user_input))
+                        db_actions.update_subscription_notes(temp_user_data.temp_data(user_id)[user_id][1],
+                                                             int(user_input))
                         temp_user_data.temp_data(user_id)[user_id][0] = None
                         bot.send_message(user_id, 'Операция успешно завершена')
                     except:
@@ -144,7 +148,8 @@ def main():
                     match call.data[8:]:
                         case '0':
                             temp_user_data.temp_data(user_id)[user_id][0] = 4
-                            bot.send_message(user_id, 'Введите новую дату истечения подписки в формате (31-07-1999 15:50)')
+                            bot.send_message(user_id,
+                                             'Введите новую дату истечения подписки в формате (31-07-1999 15:50)')
                         case '1':
                             temp_user_data.temp_data(user_id)[user_id][0] = 5
                             bot.send_message(user_id, 'Введите новое количество доступных заметок')
@@ -181,7 +186,9 @@ def main():
                                              provider_token=config.get_config()['payment_api'], currency='RUB',
                                              prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
             if call.data == 'done':
-                encoded = base64.b64encode(f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode("utf-8")).decode("utf-8")
+                encoded = base64.b64encode(
+                    f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
+                        "utf-8")).decode("utf-8")
                 headers = {
                     "Accept": "application/json",
                     "Content-Type": "application/json",
@@ -189,7 +196,7 @@ def main():
                 }
                 body = {
                     "grant_type": "authorization_code",
-                    "code": "0349f1cf-4a44-441f-ade5-2efcafa8eae2",
+                    "code": temp_user_data.temp_data(user_id)[user_id][2],
                     "redirect_uri": config.get_config()['notion_redirect_uri']
                 }
                 # Отправьте запрос на сервер авторизации Notion
@@ -212,48 +219,43 @@ def main():
                     }
 
                     response = requests.post(url, json=payload, headers=headers)
-                    get_notion_links(user_id, response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
+                    get_notion_links(user_id,
+                                     response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
 
-                    database_data = response.json()['results']
-                    notion_database_id = database_data[0]['id']
-
-                    example_data = {
-                        "handle": "@SomeHandle",
-                        "tweet": "Here is a tweet"
-                    }
                     headers = {
                         'Authorization': 'Bearer ' + notion_token,
                         'Content-Type': 'application/json',
-                        'Notion-Version': '2021-08-16'
+                        'Notion-Version': '2022-06-28'
                     }
 
-                    payload = {
-                        'parent': {'database_id': notion_database_id},
-                        'properties': {
-                            'title': {
-                                'title': [
+                    data = {
+                        "parent": {"database_id": db_actions.get_db_notion_id(user_id, 'bbb')},
+                        "properties": {
+                            "Responsible": {
+                                "title": [
                                     {
-                                        'text': {
-                                            'content': example_data['handle']
+                                        "text": {
+                                            "content": "Tuscan Kale"
                                         }
                                     }
                                 ]
                             },
-                            'tweet': {
-                                'rich_text': [
+                            "Description": {
+                                "rich_text": [
                                     {
-                                        'type': 'text',
-                                        'text': {
-                                            'content': example_data['tweet']
+                                        "text": {
+                                            "content": "A dark green leafy vegetable"
                                         }
                                     }
                                 ]
-                            }
-                        }
+                            },
+                        },
                     }
-
                     response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                             data=json.dumps(payload))
+                                             json=data)
+                    print(response.json())
+                    print('done')
+
 
                 elif r.status_code != 200:
                     bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
