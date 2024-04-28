@@ -238,9 +238,10 @@ def main():
                     }
                     # Отправьте запрос на сервер авторизации Notion
                     r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
-                    notion_token = r.json()['access_token']
-                    db_actions.update_notion_token(notion_token, user_id)
+                    print(r.json())
                     if r.status_code == 200:
+                        notion_token = r.json()['access_token']
+                        db_actions.update_notion_token(notion_token, user_id)
                         url = "https://api.notion.com/v1/search"
                         payload = {"page_size": 100}
                         headers = {
@@ -249,7 +250,6 @@ def main():
                             "content-type": "application/json",
                             "authorization": f"Bearer {notion_token}"
                         }
-
                         response = requests.post(url, json=payload, headers=headers)
                         get_notion_links(user_id, response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
                     else:
