@@ -42,14 +42,21 @@ def add_sub(user_id, sub_type):
             db_actions.give_subscription(user_id, time.time() + 2629746, 3, 30)
 
 
+def get_name_db(user_id):
+    names = list()
+    data = db_actions.get_notion_db(user_id)
+    for i in data:
+        names.append(i[1])
+    return names[temp_user_data.temp_data(user_id)[user_id][3]]
+
+
 def choose_notion_db(user_id):
     buttons = Bot_inline_btns()
     names = list()
     data = db_actions.get_notion_db(user_id)
     for i in data:
         names.append(i[1])
-    print(names)
-    bot.send_message(user_id, 'Выбери базу', reply_markup=buttons.notion_db_btns(names))
+    bot.send_message(user_id, 'Выберите базу данных из Notion', reply_markup=buttons.notion_db_btns(names))
 
 
 def get_notion_links(user_id, data):
@@ -77,17 +84,9 @@ def main():
                              reply_markup=buttons.start_buttons(), parse_mode='HTML')
         elif command[:5] == 'start':
             temp_user_data.temp_data(user_id)[user_id][2] = command[11:]
-            print(command[11:])
         elif db_actions.user_is_admin(user_id):
             if command == 'admin':
                 bot.send_message(user_id, 'Вы успешно зашли в админ-панель!', reply_markup=buttons.admin_btns())
-
-    @bot.message_handler(func=lambda message: True)
-    def handle_authorization_code(message):
-        # Extract the authorization code from the message text
-        code = message.text.strip()
-        # Use the authorization code to obtain an access token (not shown in this example)
-        bot.reply_to(message, f'Authorization code received: {code}')
 
     @bot.message_handler(content_types=['text', 'photo'])
     def txt_msg(message):
@@ -96,37 +95,73 @@ def main():
         button = Bot_inline_btns()
         code = temp_user_data.temp_data(user_id)[user_id][0]
         if db_actions.user_is_existed(user_id):
-            match code:
-                case 0:  # выдать лимит
-                    if user_input is not None:
-                        temp_user_data.temp_data(user_id)[user_id][1] = user_input
-                        temp_user_data.temp_data(user_id)[user_id][0] = 3
-                        bot.send_message(user_id, 'Что Вы хотите изменить?', reply_markup=button.actions_btns())
-                    else:
-                        bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
-                case 1:  # выдать подписку
-                    if user_input is not None:
-                        temp_user_data.temp_data(user_id)[user_id][1] = user_input
-                        temp_user_data.temp_data(user_id)[user_id][0] = 2
-                        bot.send_message(user_id, 'Выберите тип подписки', reply_markup=button.cnt_btn())
-                    else:
-                        bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
-                case 4:
-                    try:
-                        db_actions.update_subscription_time(temp_user_data.temp_data(user_id)[user_id][1],
-                                                            datetime.strptime(user_input, '%d-%m-%Y %H:%M').timestamp())
-                        temp_user_data.temp_data(user_id)[user_id][0] = None
-                        bot.send_message(user_id, 'Операция успешно завершена')
-                    except:
-                        bot.send_message(user_id, 'неправильный формат даты, попробуйте ещё раз')
-                case 5:
-                    try:
-                        db_actions.update_subscription_notes(temp_user_data.temp_data(user_id)[user_id][1],
-                                                             int(user_input))
-                        temp_user_data.temp_data(user_id)[user_id][0] = None
-                        bot.send_message(user_id, 'Операция успешно завершена')
-                    except:
-                        bot.send_message(user_id, 'это не число, попробуйте ещё раз')
+            if db_actions.check_subscription(user_id):
+                match code:
+                    case 0:  # выдать лимит
+                        if user_input is not None:
+                            temp_user_data.temp_data(user_id)[user_id][1] = user_input
+                            temp_user_data.temp_data(user_id)[user_id][0] = 3
+                            bot.send_message(user_id, 'Что Вы хотите изменить?', reply_markup=button.actions_btns())
+                        else:
+                            bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
+                    case 1:  # выдать подписку
+                        if user_input is not None:
+                            temp_user_data.temp_data(user_id)[user_id][1] = user_input
+                            temp_user_data.temp_data(user_id)[user_id][0] = 2
+                            bot.send_message(user_id, 'Выберите тип подписки', reply_markup=button.cnt_btn())
+                        else:
+                            bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
+                    case 4:
+                        try:
+                            db_actions.update_subscription_time(temp_user_data.temp_data(user_id)[user_id][1],
+                                                                datetime.strptime(user_input, '%d-%m-%Y %H:%M').timestamp())
+                            temp_user_data.temp_data(user_id)[user_id][0] = None
+                            bot.send_message(user_id, 'Операция успешно завершена')
+                        except:
+                            bot.send_message(user_id, 'неправильный формат даты, попробуйте ещё раз')
+                    case 5:
+                        try:
+                            db_actions.update_subscription_notes(temp_user_data.temp_data(user_id)[user_id][1],
+                                                                 int(user_input))
+                            temp_user_data.temp_data(user_id)[user_id][0] = None
+                            bot.send_message(user_id, 'Операция успешно завершена')
+                        except:
+                            bot.send_message(user_id, 'это не число, попробуйте ещё раз')
+                    case 6:
+                        if user_input is not None:
+                            headers = {
+                                'Authorization': 'Bearer ' + db_actions.get_notion_access_token(user_id),
+                                'Content-Type': 'application/json',
+                                'Notion-Version': '2022-06-28'
+                            }
+
+                            data = {
+                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_name_db(user_id))},
+                                "properties": {
+                                    "Responsible": {
+                                        "title": [
+                                            {
+                                                "text": {
+                                                    "content": "Tuscan Kale"
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    "Description": {
+                                        "rich_text": [
+                                            {
+                                                "text": {
+                                                    "content": user_input
+                                                }
+                                            }
+                                        ]
+                                    },
+                                },
+                            }
+                            response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                     json=data)
+                            print(response.json())
+                            print('done')
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback(call):
@@ -134,28 +169,29 @@ def main():
         button = Bot_inline_btns()
         if db_actions.user_is_existed(user_id):
             code = temp_user_data.temp_data(user_id)[user_id][0]
-            if db_actions.user_is_admin(user_id):
-                if call.data == 'givelimit':
-                    temp_user_data.temp_data(user_id)[user_id][0] = 0
-                    bot.send_message(user_id, 'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать лимит',
-                                     parse_mode='HTML')
-                elif call.data == 'givesub':
-                    temp_user_data.temp_data(user_id)[user_id][0] = 1
-                    bot.send_message(user_id,
-                                     'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать подписку',
-                                     parse_mode='HTML')
-                elif call.data[:8] == 'restrict' and code == 3:
-                    match call.data[8:]:
-                        case '0':
-                            temp_user_data.temp_data(user_id)[user_id][0] = 4
-                            bot.send_message(user_id,
-                                             'Введите новую дату истечения подписки в формате (31-07-1999 15:50)')
-                        case '1':
-                            temp_user_data.temp_data(user_id)[user_id][0] = 5
-                            bot.send_message(user_id, 'Введите новое количество доступных заметок')
-                elif call.data[:3] == 'cnt' and code == 2:
-                    give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
-            if db_actions.check_subscription(user_id):
+            if not db_actions.check_subscription(user_id):
+                if db_actions.user_is_admin(user_id):
+                    if call.data == 'givelimit':
+                        temp_user_data.temp_data(user_id)[user_id][0] = 0
+                        bot.send_message(user_id,
+                                         'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать лимит',
+                                         parse_mode='HTML')
+                    elif call.data == 'givesub':
+                        temp_user_data.temp_data(user_id)[user_id][0] = 1
+                        bot.send_message(user_id,
+                                         'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать подписку',
+                                         parse_mode='HTML')
+                    elif call.data[:8] == 'restrict' and code == 3:
+                        match call.data[8:]:
+                            case '0':
+                                temp_user_data.temp_data(user_id)[user_id][0] = 4
+                                bot.send_message(user_id,
+                                                 'Введите новую дату истечения подписки в формате (31-07-1999 15:50)')
+                            case '1':
+                                temp_user_data.temp_data(user_id)[user_id][0] = 5
+                                bot.send_message(user_id, 'Введите новое количество доступных заметок')
+                    elif call.data[:3] == 'cnt' and code == 2:
+                        give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
                 if call.data == 'sub':
                     subsc = db_actions.get_eol(user_id)
                     if subsc[2] == 3:
@@ -185,81 +221,46 @@ def main():
                             bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
                                              provider_token=config.get_config()['payment_api'], currency='RUB',
                                              prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
-            if call.data == 'done':
-                encoded = base64.b64encode(
-                    f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
-                        "utf-8")).decode("utf-8")
-                headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Authorization": f"Basic {encoded}"
-                }
-                body = {
-                    "grant_type": "authorization_code",
-                    "code": temp_user_data.temp_data(user_id)[user_id][2],
-                    "redirect_uri": config.get_config()['notion_redirect_uri']
-                }
-                # Отправьте запрос на сервер авторизации Notion
-                r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
-                print('status-code: ', r.status_code)
-                print(r.json())
-                notion_token = r.json()['access_token']
-                db_actions.update_notion_token(notion_token, user_id)
-                if r.status_code == 200:
-                    bot.send_message(user_id, '<b>Авторизация успешна!</b>\n\n'
-                                              'Теперь ты можешь делать заметки', parse_mode='HTML')
-                    url = "https://api.notion.com/v1/search"
-
-                    payload = {"page_size": 100}
+            else:
+                if call.data == 'done':
+                    encoded = base64.b64encode(
+                        f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
+                            "utf-8")).decode("utf-8")
                     headers = {
-                        "accept": "application/json",
-                        "Notion-Version": "2022-06-28",
-                        "content-type": "application/json",
-                        "authorization": f"Bearer {notion_token}"
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "Authorization": f"Basic {encoded}"
                     }
-
-                    response = requests.post(url, json=payload, headers=headers)
-                    get_notion_links(user_id,
-                                     response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
-
-                    headers = {
-                        'Authorization': 'Bearer ' + notion_token,
-                        'Content-Type': 'application/json',
-                        'Notion-Version': '2022-06-28'
+                    body = {
+                        "grant_type": "authorization_code",
+                        "code": temp_user_data.temp_data(user_id)[user_id][2],
+                        "redirect_uri": config.get_config()['notion_redirect_uri']
                     }
+                    # Отправьте запрос на сервер авторизации Notion
+                    r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
+                    notion_token = r.json()['access_token']
+                    db_actions.update_notion_token(notion_token, user_id)
+                    if r.status_code == 200:
+                        url = "https://api.notion.com/v1/search"
+                        payload = {"page_size": 100}
+                        headers = {
+                            "accept": "application/json",
+                            "Notion-Version": "2022-06-28",
+                            "content-type": "application/json",
+                            "authorization": f"Bearer {notion_token}"
+                        }
 
-                    data = {
-                        "parent": {"database_id": db_actions.get_db_notion_id(user_id, 'bbb')},
-                        "properties": {
-                            "Responsible": {
-                                "title": [
-                                    {
-                                        "text": {
-                                            "content": "Tuscan Kale"
-                                        }
-                                    }
-                                ]
-                            },
-                            "Description": {
-                                "rich_text": [
-                                    {
-                                        "text": {
-                                            "content": "A dark green leafy vegetable"
-                                        }
-                                    }
-                                ]
-                            },
-                        },
-                    }
-                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                             json=data)
-                    print(response.json())
-                    print('done')
+                        response = requests.post(url, json=payload, headers=headers)
+                        get_notion_links(user_id, response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
+                    else:
+                        bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
+                                                  'Попробуйте еще раз!', parse_mode='HTML')
+                elif call.data[:11] == 'notions_dbs':
+                    temp_user_data.temp_data(user_id)[user_id][0] = 6
+                    temp_user_data.temp_data(user_id)[user_id][3] = int(call.data[11:])
+                    bot.send_message(user_id, 'Отлично, теперь вы можете оставлять заметки!')
 
 
-                elif r.status_code != 200:
-                    bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
-                                              'Попробуйте еще раз!', parse_mode='HTML')
         else:
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
                                       'Введите /start', parse_mode='HTML')

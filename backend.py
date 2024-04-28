@@ -11,7 +11,7 @@ class TempUserData:
 
     def temp_data(self, user_id):
         if user_id not in self.__user_data.keys():
-            self.__user_data.update({user_id: [None, None, None]})
+            self.__user_data.update({user_id: [None, None, None, None]})
         return self.__user_data
 
 
@@ -95,6 +95,9 @@ class DbAct:
         data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))
         if len(data) > 0:
             return json.loads(data[0][0])
+
+    def get_notion_access_token(self, user_id):
+        return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
 
     def get_db_notion_id(self, user_id, db_name):
         data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))[0][0]
