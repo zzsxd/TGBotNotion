@@ -25,6 +25,7 @@ class DB:
             exp_date INTEGER,
             notes_count INTEGER,
             subscription_type INTEGER,
+            notion_settings TEXT,
             notion_token TEXT,
             db_info TEXT,
             UNIQUE(user_id)

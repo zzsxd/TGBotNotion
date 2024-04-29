@@ -30,8 +30,8 @@ class DbAct:
             else:
                 is_admin = False
             self.__db.db_write(
-                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3))
+                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None]), '', ''))
 
     def user_is_existed(self, user_id):
         data = self.__db.db_read('SELECT count(*) FROM users WHERE user_id = ?', (user_id,))
@@ -65,20 +65,13 @@ class DbAct:
     def get_eol(self, user_id):
         return self.__db.db_read('SELECT exp_date, notes_count, subscription_type FROM users WHERE user_id = ?', (user_id, ))[0]
 
-    def update_subscription_time(self, user_nick, times):
-        self.__db.db_write('UPDATE users SET exp_date = ? WHERE nick_name = ?', (times, user_nick))
+    def update_subscription_time(self, user_id, times):
+        self.__db.db_write('UPDATE users SET exp_date = ? WHERE user_id = ?', (times, user_id))
 
-    def update_subscription_notes(self, user_nick, notes_count):
-        self.__db.db_write('UPDATE users SET notes_count = ? WHERE nick_name = ?', (notes_count, user_nick))
+    def update_subscription_notes(self, user_id, notes_count):
+        self.__db.db_write('UPDATE users SET notes_count = ? WHERE user_id = ?', (notes_count, user_id))
 
-    def give_subscription(self, nick_name, date, sub_type, notes=0):
-        if notes == 0:
-            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ? WHERE nick_name = ?', (date, sub_type, nick_name))
-        else:
-            self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ?, notes_count = ? WHERE nick_name = ?',
-                               (date, sub_type, notes, nick_name))
-
-    def give_subscription_ud(self, user_id, date, sub_type, notes=0):
+    def give_subscription(self, user_id, date, sub_type, notes=0):
         if notes == 0:
             self.__db.db_write('UPDATE users SET exp_date = ?, subscription_type = ? WHERE user_id = ?', (date, sub_type, user_id))
         else:
@@ -91,24 +84,44 @@ class DbAct:
     def update_notion_db(self, user_id, data):
         self.__db.db_write('UPDATE users SET db_info = ? WHERE user_id = ?', (json.dumps(data), user_id))
 
+    def get_notion_access_token(self, user_id):
+        return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
+
+    def get_notion_settings(self, user_id):
+        return json.loads(self.__db.db_read('SELECT notion_settings FROM users WHERE user_id = ?', (user_id, ))[0][0])
+
+    def update_notion_settings(self, switch, settings, user_id):
+        data = self.get_notion_settings(user_id)
+        if switch:
+            data[0] = settings
+        else:
+            data[1] = settings
+        self.__db.db_write('UPDATE users SET notion_settings = ? WHERE user_id = ?', (json.dumps(data), user_id))
+
     def get_notion_db(self, user_id):
         data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))
         if len(data) > 0:
             return json.loads(data[0][0])
 
-    def get_notion_property_db(self, user_id, db_index, out=[]):
-        data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))[0][0]
-        data = json.loads(data)
-        for i in data[db_index][3].values():
-            out.append(i)
+    def get_all_notion_db_names(self, user_id):
+        data = self.get_notion_db(user_id)
+        names = list()
+        for i in data:
+            names.append(i[1])
+        return names
+
+    def get_all_notion_fields_names(self, user_id, db_index, out=[]):
+        data = self.get_notion_db(user_id)
+        for i, g in data[db_index][3].items():
+            if i not in ['files']:
+                out.append(g)
         return out
 
-    def get_notion_access_token(self, user_id):
-        return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
+    def get_get_field_by_type(self, user_id, db_index, user_search):
+        search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_fields': 3}
+        data = self.get_notion_db(user_id)
+        return data[db_index][search[user_search]]
 
-    def get_db_notion_id(self, user_id, db_name):
-        data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))[0][0]
-        data = json.loads(data)
-        for i in data:
-            if i[1] == db_name:
-                return i[0]
+    def get_set_field_by_type(self, user_id, db_index, field_type):
+        data = self.get_notion_db(user_id)
+        return data[db_index][3][field_type]

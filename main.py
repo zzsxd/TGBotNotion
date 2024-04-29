@@ -17,16 +17,16 @@ from frontend import Bot_inline_btns
 config_name = 'secrets.json'
 
 
-def give_sub(user_id, nick_name, sub_type):
+def give_sub(user_id, user_id_client, sub_type):
     match sub_type:
         case 0:
-            db_actions.give_subscription(nick_name, time.time() + 2629746, 0)
+            db_actions.give_subscription(user_id_client, time.time() + 2629746, 0)
         case 1:
-            db_actions.give_subscription(nick_name, time.time() + 15778476, 1)
+            db_actions.give_subscription(user_id_client, time.time() + 15778476, 1)
         case 2:
-            db_actions.give_subscription(nick_name, time.time() + 31556952, 2)
+            db_actions.give_subscription(user_id_client, time.time() + 31556952, 2)
         case 3:
-            db_actions.give_subscription(nick_name, time.time() + 2629746, 3, 30)
+            db_actions.give_subscription(user_id_client, time.time() + 2629746, 3, 30)
     bot.send_message(user_id, 'Операция успешно завершена')
 
 
@@ -42,20 +42,6 @@ def add_sub(user_id, sub_type):
             db_actions.give_subscription(user_id, time.time() + 2629746, 3, 30)
 
 
-def choose_notion_db(user_id):
-    buttons = Bot_inline_btns()
-    names = list()
-    data = db_actions.get_notion_db(user_id)
-    for i in data:
-        names.append(i[1])
-    bot.send_message(user_id, 'Выберите базу данных из Notion', reply_markup=buttons.notion_db_btns(names))
-
-def choose_property_db(user_id):
-    buttons = Bot_inline_btns()
-    data = db_actions.get_notion_property_db(user_id, temp_user_data.temp_data(user_id)[user_id][3])
-    bot.send_message(user_id, 'Выберите property таблицы:', reply_markup=buttons.notion_prop_btns(data))
-
-
 def get_notion_links(user_id, data):
     out = list()
     xyi = {}
@@ -67,24 +53,40 @@ def get_notion_links(user_id, data):
             out.append([i['id'], i['title'][0]['plain_text'], i['url'], xyi])
             xyi = copy.deepcopy({})
     db_actions.update_notion_db(user_id, out)
-    choose_notion_db(user_id)
 
 
-def get_field_from_notion_db(user_id, db_index, user_search, field_type):
-    search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_fields': 3}
-    data = db_actions.get_notion_db(user_id)
-    return data[db_index][search[user_search]][field_type]
+def upload_photo(image, voice):
+    if voice is None:
+        photo_id = image[-1].file_id
+        photo_file = bot.get_file(photo_id)
+        photo_bytes = bot.download_file(photo_file.file_path)
+    else:
+        file_id = voice.file_id
+        file_info = bot.get_file(file_id)
+        file_url = f"https://api.telegram.org/file/bot{config.get_config()['tg_api']}/{file_info.file_path}"
+        response = requests.get(file_url)
+        photo_bytes = response.content
 
-
-def get_name_from_db(user_id, db_index):
-    data = db_actions.get_notion_db(user_id)
-    return data[db_index][1]
+    # Download the file content
+    response = requests.get(file_url)
+    files = {
+        "key": config.get_config()['ImageBB_API'],
+        'image': base64.b64encode(photo_bytes)
+    }
+    response = requests.post("https://api.imgbb.com/1/upload", params=files)
+    if response.status_code == 200:
+        image_url = response.json()["data"]["url"]
+        return image_url
+    else:
+        print("Ошибка при загрузке изображения на ImgBB:", response.text)
+        return None
 
 
 def main():
-    @bot.message_handler(commands=['start', 'admin'])
+    @bot.message_handler(commands=['start', 'admin', 'change'])
     def start_msg(message):
-        user_id = message.chat.id
+        print(message)
+        user_id = message.from_user.id
         buttons = Bot_inline_btns()
         command = message.text.replace('/', '')
         if command == 'start':
@@ -96,15 +98,22 @@ def main():
                              reply_markup=buttons.start_buttons(), parse_mode='HTML')
         elif command[:5] == 'start':
             temp_user_data.temp_data(user_id)[user_id][2] = command[11:]
+        elif command == 'change':
+            bot.send_message(user_id, 'Здесь Вы можете изменить параметры для добавления заметок в Notion', reply_markup=buttons.choose_notion_dest())
         elif db_actions.user_is_admin(user_id):
             if command == 'admin':
                 bot.send_message(user_id, 'Вы успешно зашли в админ-панель!', reply_markup=buttons.admin_btns())
 
-    @bot.message_handler(content_types=['text', 'photo'])
+    @bot.message_handler(content_types=['text', 'photo', 'voice'])
     def txt_msg(message):
-        user_id = message.chat.id
+        print(message.voice)
+        user_id = message.from_user.id
+        user_caption = message.caption
         user_input = message.text
-        button = Bot_inline_btns()
+        user_photo = message.photo
+        user_video = message.video
+        user_voice = message.voice
+        buttons = Bot_inline_btns()
         code = temp_user_data.temp_data(user_id)[user_id][0]
         if db_actions.user_is_existed(user_id):
             if db_actions.check_subscription(user_id):
@@ -113,14 +122,14 @@ def main():
                         if user_input is not None:
                             temp_user_data.temp_data(user_id)[user_id][1] = user_input
                             temp_user_data.temp_data(user_id)[user_id][0] = 3
-                            bot.send_message(user_id, 'Что Вы хотите изменить?', reply_markup=button.actions_btns())
+                            bot.send_message(user_id, 'Что Вы хотите изменить?', reply_markup=buttons.actions_btns())
                         else:
                             bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
                     case 1:  # выдать подписку
                         if user_input is not None:
                             temp_user_data.temp_data(user_id)[user_id][1] = user_input
                             temp_user_data.temp_data(user_id)[user_id][0] = 2
-                            bot.send_message(user_id, 'Выберите тип подписки', reply_markup=button.cnt_btn())
+                            bot.send_message(user_id, 'Выберите тип подписки', reply_markup=buttons.cnt_btn())
                         else:
                             bot.send_message(user_id, 'это не текст, попробуйте ещё раз')
                     case 4:
@@ -139,51 +148,100 @@ def main():
                             bot.send_message(user_id, 'Операция успешно завершена')
                         except:
                             bot.send_message(user_id, 'это не число, попробуйте ещё раз')
-                    case 6:
-                        if user_input is not None:
-                            headers = {
-                                'Authorization': 'Bearer ' + db_actions.get_notion_access_token(user_id),
-                                'Content-Type': 'application/json',
-                                'Notion-Version': '2022-06-28'
-                            }
-
-                            data = {
-                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_name_from_db(user_id, temp_user_data.temp_data(user_id)[user_id][3]))},
-                                "properties": {
-                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_fields', 'title'): {
-                                        "title": [
-                                            {
-                                                "text": {
-                                                    "content": user_input
-                                                }
+                settings = db_actions.get_notion_settings(user_id)
+                print(settings)
+                headers = {
+                    'Authorization': 'Bearer ' + db_actions.get_notion_access_token(user_id),
+                    'Content-Type': 'application/json',
+                    'Notion-Version': '2022-06-28'
+                }
+                if settings[0] is not None and settings[1] is not None:
+                    if user_input is not None and (user_photo is None and user_video is None and user_voice is None):
+                        field_name = db_actions.get_all_notion_fields_names(user_id, settings[0])[settings[1]]
+                        data = {
+                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
+                            "properties": {
+                                field_name: {
+                                    "title": [
+                                        {
+                                            "text": {
+                                                "content": user_input
                                             }
-                                        ]
-                                    },
-                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_fields', 'files'):{
-                                       "id":"%7BMK%7C",
-                                       "type": "files",
-                                       "files":[
-                                          {
-                                             "name": "https://static-cse.canva.com/blob/847132/paulskorupskas7KLaxLbSXAunsplash2.jpg",
-                                             "type": "external",
-                                             "external":{
-                                                "url": "https://static-cse.canva.com/blob/847132/paulskorupskas7KLaxLbSXAunsplash2.jpg"
-                                             }
-                                          }
-                                       ]
-                                    },
-
+                                        }
+                                    ]
                                 },
-                            }
-                            response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                     json=data)
-                            print(response.json())
-                            print('done')
+                            },
+                        }
+                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                 json=data)
+                        print(response.json())
+                    elif user_caption is not None and (user_photo is not None or user_video is not None or user_voice is not None):
+                        photo_url = upload_photo(user_photo, user_voice)
+                        field_name = db_actions.get_all_notion_fields_names(user_id, settings[0])[settings[1]]
+                        data = {
+                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
+                            "properties": {
+                                field_name: {
+                                    "title": [
+                                        {
+                                            "text": {
+                                                "content": user_caption
+                                            }
+                                        }
+                                    ]
+                                },
+                                db_actions.get_set_field_by_type(user_id,
+                                                                 settings[0],
+                                                                 'files'): {
+                                    "type": "files",
+                                    "files": [
+                                        {
+                                            "name": photo_url,
+                                            "type": "external",
+                                            "external": {
+                                                "url": photo_url
+                                            }
+                                        }
+                                    ]
+                                },
+                            },
+                        }
+                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                 json=data)
+                        print(response.json())
+                    elif user_input is None and (user_photo is not None or user_video is not None or user_voice is not None):
+                        photo_url = upload_photo(user_photo, user_voice)
+                        data = {
+                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
+                            "properties": {
+                                db_actions.get_set_field_by_type(user_id,
+                                                                 settings[0],
+                                                                 'files'): {
+                                    "type": "files",
+                                    "files": [
+                                        {
+                                            "name": photo_url,
+                                            "type": "external",
+                                            "external": {
+                                                "url": photo_url
+                                            }
+                                        }
+                                    ]
+                                },
+                            },
+                        }
+                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                 json=data)
+                        print(response.json())
+                else:
+                    bot.send_message(user_id,
+                                     'Сначала нужно настроить параметры для добавления заметок в Notion',
+                                     reply_markup=buttons.choose_notion_dest())
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback(call):
         user_id = call.message.chat.id
-        button = Bot_inline_btns()
+        buttons = Bot_inline_btns()
         if db_actions.user_is_existed(user_id):
             code = temp_user_data.temp_data(user_id)[user_id][0]
             if call.data == 'sub':
@@ -191,11 +249,11 @@ def main():
                 if subsc[2] == 3:
                     bot.send_message(user_id, 'Выберите подписку!\n\n'
                                               f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}\n Заметок осталось: {subsc[1]}',
-                                     reply_markup=button.payment_btn())
+                                     reply_markup=buttons.payment_btn())
                 else:
                     bot.send_message(user_id, 'Выберите подписку!\n\n'
                                               f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}',
-                                     reply_markup=button.payment_btn())
+                                     reply_markup=buttons.payment_btn())
             if not db_actions.check_subscription(user_id):
                 if call.data[:12] == 'subscription':
                     match call.data[12:]:
@@ -221,12 +279,12 @@ def main():
                     if call.data == 'givelimit':
                         temp_user_data.temp_data(user_id)[user_id][0] = 0
                         bot.send_message(user_id,
-                                         'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать лимит',
+                                         'Введите <i><b>ID пользователя</b></i>, которому нужно выдать лимит',
                                          parse_mode='HTML')
                     elif call.data == 'givesub':
                         temp_user_data.temp_data(user_id)[user_id][0] = 1
                         bot.send_message(user_id,
-                                         'Введите <i><b>никнейм пользователя</b></i>, которому нужно выдать подписку',
+                                         'Введите <i><b>ID пользователя</b></i>, которому нужно выдать подписку',
                                          parse_mode='HTML')
                     elif call.data[:8] == 'restrict' and code == 3:
                         match call.data[8:]:
@@ -269,18 +327,31 @@ def main():
                         }
                         response = requests.post(url, json=payload, headers=headers)
                         get_notion_links(user_id, response.json())
+                        bot.send_message(user_id,
+                                         'Авторизация успешна! Теперь нужно настроить параметры для добавления заметок в Notion',
+                                         reply_markup=buttons.choose_notion_dest())
                     else:
                         bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
                                                   'Попробуйте еще раз!', parse_mode='HTML')
                 elif call.data[:11] == 'notions_dbs':
-                    temp_user_data.temp_data(user_id)[user_id][0] = 6
-                    temp_user_data.temp_data(user_id)[user_id][3] = int(call.data[11:])
-                    choose_property_db(user_id)
+                    db_actions.update_notion_settings(True, int(call.data[11:]), user_id)
+                    bot.send_message(user_id, 'Операция совершена успешно')
 
                 elif call.data[:13] == 'notions_props':
-                    temp_user_data.temp_data(user_id)[user_id][0] = 6
-                    temp_user_data.temp_data(user_id)[user_id][3] = int(call.data[13:])
-                    bot.send_message(user_id, 'Отлично, теперь вы можете оставлять заметки!')
+                    db_actions.update_notion_settings(False, int(call.data[13:]), user_id)
+                    bot.send_message(user_id, 'Операция совершена успешно')
+                elif call.data[:10] == 'select_dst':
+                    match call.data[10:]:
+                        case '0':
+                            names = db_actions.get_all_notion_db_names(user_id)
+                            bot.send_message(user_id, 'Выберите базу данных', reply_markup=buttons.notion_db_btns(names))
+                        case '1':
+                            settings = db_actions.get_notion_settings(user_id)
+                            if settings[0] is not None:
+                                names = db_actions.get_all_notion_fields_names(user_id, settings[0])
+                                bot.send_message(user_id, 'Выберите поле для записи', reply_markup=buttons.notion_prop_btns(names))
+                            else:
+                                bot.send_message(user_id, 'Сначала выберите базу данных')
         else:
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
                                       'Введите /start', parse_mode='HTML')
