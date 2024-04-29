@@ -1,4 +1,5 @@
 import base64
+import copy
 import os
 import platform
 import time
@@ -52,20 +53,27 @@ def choose_notion_db(user_id):
 
 def get_notion_links(user_id, data):
     out = list()
+    xyi = {}
     print(data)
     for i in data['results']:
         if i["object"] == "database":
             for g in i['properties'].keys():
-                if i['properties'][g]['type'] == 'title':
-                    out.append([i['id'], i['title'][0]['plain_text'], i['url'], i['properties'][g]['name']])
+                xyi.update({i['properties'][g]['type']: g})
+            out.append([i['id'], i['title'][0]['plain_text'], i['url'], xyi])
+            xyi = copy.deepcopy({})
     db_actions.update_notion_db(user_id, out)
     choose_notion_db(user_id)
 
 
-def get_field_from_notion_db(user_id, db_index, user_search):
-    search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_first_field': 3}
+def get_field_from_notion_db(user_id, db_index, user_search, field_type):
+    search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_fields': 3}
     data = db_actions.get_notion_db(user_id)
-    return data[db_index][search[user_search]]
+    return data[db_index][search[user_search]][field_type]
+
+
+def get_name_from_db(user_id, db_index):
+    data = db_actions.get_notion_db(user_id)
+    return data[db_index][1]
 
 
 def main():
@@ -135,9 +143,9 @@ def main():
                             }
 
                             data = {
-                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_name'))},
+                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_name_from_db(user_id, temp_user_data.temp_data(user_id)[user_id][3]))},
                                 "properties": {
-                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_first_field'): {
+                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_fields', 'title'): {
                                         "title": [
                                             {
                                                 "text": {
@@ -146,6 +154,20 @@ def main():
                                             }
                                         ]
                                     },
+                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_fields', 'files'):{
+                                       "id":"%7BMK%7C",
+                                       "type": "files",
+                                       "files":[
+                                          {
+                                             "name": "https://static-cse.canva.com/blob/847132/paulskorupskas7KLaxLbSXAunsplash2.jpg",
+                                             "type": "external",
+                                             "external":{
+                                                "url": "https://static-cse.canva.com/blob/847132/paulskorupskas7KLaxLbSXAunsplash2.jpg"
+                                             }
+                                          }
+                                       ]
+                                    },
+
                                 },
                             }
                             response = requests.post('https://api.notion.com/v1/pages', headers=headers,
@@ -241,7 +263,7 @@ def main():
                             "authorization": f"Bearer {notion_token}"
                         }
                         response = requests.post(url, json=payload, headers=headers)
-                        get_notion_links(user_id, response.json())  # тут есть данные про страницы которые чел выбрал, нужно их взять и вывести в кнопки для frontend, чтобы можно было переключаться
+                        get_notion_links(user_id, response.json())
                     else:
                         bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
                                                   'Попробуйте еще раз!', parse_mode='HTML')
