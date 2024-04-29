@@ -96,6 +96,13 @@ class DbAct:
         if len(data) > 0:
             return json.loads(data[0][0])
 
+    def get_notion_property_db(self, user_id, db_index, out=[]):
+        data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))[0][0]
+        data = json.loads(data)
+        for i in data[db_index][3].values():
+            out.append(i)
+        return out
+
     def get_notion_access_token(self, user_id):
         return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
 

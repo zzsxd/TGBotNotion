@@ -50,6 +50,11 @@ def choose_notion_db(user_id):
         names.append(i[1])
     bot.send_message(user_id, 'Выберите базу данных из Notion', reply_markup=buttons.notion_db_btns(names))
 
+def choose_property_db(user_id):
+    buttons = Bot_inline_btns()
+    data = db_actions.get_notion_property_db(user_id, temp_user_data.temp_data(user_id)[user_id][3])
+    bot.send_message(user_id, 'Выберите property таблицы:', reply_markup=buttons.notion_prop_btns(data))
+
 
 def get_notion_links(user_id, data):
     out = list()
@@ -270,9 +275,12 @@ def main():
                 elif call.data[:11] == 'notions_dbs':
                     temp_user_data.temp_data(user_id)[user_id][0] = 6
                     temp_user_data.temp_data(user_id)[user_id][3] = int(call.data[11:])
+                    choose_property_db(user_id)
+
+                elif call.data[:13] == 'notions_props':
+                    temp_user_data.temp_data(user_id)[user_id][0] = 6
+                    temp_user_data.temp_data(user_id)[user_id][3] = int(call.data[13:])
                     bot.send_message(user_id, 'Отлично, теперь вы можете оставлять заметки!')
-
-
         else:
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
                                       'Введите /start', parse_mode='HTML')
