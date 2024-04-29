@@ -10,7 +10,7 @@ config_name = 'secrets.json'
 def get_parameters():
     # Get the value of the 'code' parameter from the URL
     code = request.args.get('code')
-    return redirect(f'{config.get_config()["notion_redirect_uri"]}?start=code={code}')
+    return redirect(f'{config.get_config()["tg_link"]}?start=code={code}')
 
 
 if '__main__' == __name__:

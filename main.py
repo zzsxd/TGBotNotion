@@ -4,7 +4,6 @@ import platform
 import time
 import types
 from threading import Lock
-import json
 import requests
 import telebot
 from telebot import types
@@ -42,14 +41,6 @@ def add_sub(user_id, sub_type):
             db_actions.give_subscription(user_id, time.time() + 2629746, 3, 30)
 
 
-def get_name_db(user_id):
-    names = list()
-    data = db_actions.get_notion_db(user_id)
-    for i in data:
-        names.append(i[1])
-    return names[temp_user_data.temp_data(user_id)[user_id][3]]
-
-
 def choose_notion_db(user_id):
     buttons = Bot_inline_btns()
     names = list()
@@ -64,9 +55,17 @@ def get_notion_links(user_id, data):
     print(data)
     for i in data['results']:
         if i["object"] == "database":
-            out.append([i['id'], i['title'][0]['plain_text'], i['url']])
+            for g in i['properties'].keys():
+                if i['properties'][g]['type'] == 'title':
+                    out.append([i['id'], i['title'][0]['plain_text'], i['url'], i['properties'][g]['name']])
     db_actions.update_notion_db(user_id, out)
     choose_notion_db(user_id)
+
+
+def get_field_from_notion_db(user_id, db_index, user_search):
+    search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_first_field': 3}
+    data = db_actions.get_notion_db(user_id)
+    return data[db_index][search[user_search]]
 
 
 def main():
@@ -136,19 +135,10 @@ def main():
                             }
 
                             data = {
-                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_name_db(user_id))},
+                                "parent": {"database_id": db_actions.get_db_notion_id(user_id, get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_name'))},
                                 "properties": {
-                                    "Responsible": {
+                                    get_field_from_notion_db(user_id, temp_user_data.temp_data(user_id)[user_id][3], 'db_first_field'): {
                                         "title": [
-                                            {
-                                                "text": {
-                                                    "content": "Tuscan Kale"
-                                                }
-                                            }
-                                        ]
-                                    },
-                                    "Description": {
-                                        "rich_text": [
                                             {
                                                 "text": {
                                                     "content": user_input
@@ -169,7 +159,37 @@ def main():
         button = Bot_inline_btns()
         if db_actions.user_is_existed(user_id):
             code = temp_user_data.temp_data(user_id)[user_id][0]
+            if call.data == 'sub':
+                subsc = db_actions.get_eol(user_id)
+                if subsc[2] == 3:
+                    bot.send_message(user_id, 'Выберите подписку!\n\n'
+                                              f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}\n Заметок осталось: {subsc[1]}',
+                                     reply_markup=button.payment_btn())
+                else:
+                    bot.send_message(user_id, 'Выберите подписку!\n\n'
+                                              f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}',
+                                     reply_markup=button.payment_btn())
             if not db_actions.check_subscription(user_id):
+                if call.data[:12] == 'subscription':
+                    match call.data[12:]:
+                        case '0':
+                            bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', '0',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
+                        case '1':
+                            bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', '1',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
+                        case '2':
+                            bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', '2',
+                                             provider_token=config.get_config()['payment_api'],
+                                             currency='RUB',
+                                             prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
+                        case '3':
+                            bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
+                                             provider_token=config.get_config()['payment_api'], currency='RUB',
+                                             prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
+            else:
                 if db_actions.user_is_admin(user_id):
                     if call.data == 'givelimit':
                         temp_user_data.temp_data(user_id)[user_id][0] = 0
@@ -192,36 +212,6 @@ def main():
                                 bot.send_message(user_id, 'Введите новое количество доступных заметок')
                     elif call.data[:3] == 'cnt' and code == 2:
                         give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
-                if call.data == 'sub':
-                    subsc = db_actions.get_eol(user_id)
-                    if subsc[2] == 3:
-                        bot.send_message(user_id, 'Выберите подписку!\n\n'
-                                                  f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}\n Заметок осталось: {subsc[1]}',
-                                         reply_markup=button.payment_btn())
-                    else:
-                        bot.send_message(user_id, 'Выберите подписку!\n\n'
-                                                  f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}',
-                                         reply_markup=button.payment_btn())
-                elif call.data[:12] == 'subscription':
-                    match call.data[12:]:
-                        case '0':
-                            bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', '0',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
-                        case '1':
-                            bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', '1',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
-                        case '2':
-                            bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', '2',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB',
-                                             prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
-                        case '3':
-                            bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
-                                             provider_token=config.get_config()['payment_api'], currency='RUB',
-                                             prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
-            else:
                 if call.data == 'done':
                     encoded = base64.b64encode(
                         f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
