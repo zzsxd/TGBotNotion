@@ -110,11 +110,19 @@ class DbAct:
             names.append(i[1])
         return names
 
-    def get_all_notion_fields_names(self, user_id, db_index, out=[]):
+    def auto_select_field(self, user_id, db_index):
+        out = list()
+        data = self.get_notion_db(user_id)
+        for index, g in enumerate(data[db_index][3].keys()):
+            if g in ['title']:
+                return index
+
+    def get_all_notion_fields_names(self, user_id, db_index):
+        out = dict()
         data = self.get_notion_db(user_id)
         for i, g in data[db_index][3].items():
-            if i not in ['files']:
-                out.append(g)
+            if i in ['title', 'rich_text']:
+                out.update({i: g})
         return out
 
     def get_get_field_by_type(self, user_id, db_index, user_search):

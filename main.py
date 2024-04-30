@@ -1,6 +1,7 @@
 import base64
 import copy
 import os
+import pyshorteners
 import platform
 import time
 import types
@@ -55,31 +56,28 @@ def get_notion_links(user_id, data):
     db_actions.update_notion_db(user_id, out)
 
 
-def upload_photo(image, voice):
-    if voice is None:
+def shorten_url(url):
+    shortener = pyshorteners.Shortener()
+    short_url = shortener.tinyurl.short(url)
+    return short_url
+
+
+def upload_photo(image, voice, video):
+    if image is not None:
         photo_id = image[-1].file_id
-        photo_file = bot.get_file(photo_id)
-        photo_bytes = bot.download_file(photo_file.file_path)
-    else:
+        file_info = bot.get_file(photo_id)
+        file_url = f"https://api.telegram.org/file/bot{config.get_config()['tg_api']}/{file_info.file_path}"
+        return file_url
+    elif voice is not None:
         file_id = voice.file_id
         file_info = bot.get_file(file_id)
         file_url = f"https://api.telegram.org/file/bot{config.get_config()['tg_api']}/{file_info.file_path}"
-        response = requests.get(file_url)
-        photo_bytes = response.content
-
-    # Download the file content
-    response = requests.get(file_url)
-    files = {
-        "key": config.get_config()['ImageBB_API'],
-        'image': base64.b64encode(photo_bytes)
-    }
-    response = requests.post("https://api.imgbb.com/1/upload", params=files)
-    if response.status_code == 200:
-        image_url = response.json()["data"]["url"]
-        return image_url
+        return shorten_url(file_url)
     else:
-        print("Ошибка при загрузке изображения на ImgBB:", response.text)
-        return None
+        video_id = video.file_id
+        file_info = bot.get_file(video_id)
+        file_url = f"https://api.telegram.org/file/bot{config.get_config()['tg_api']}/{file_info.file_path}"
+        return shorten_url(file_url)
 
 
 def main():
@@ -104,9 +102,8 @@ def main():
             if command == 'admin':
                 bot.send_message(user_id, 'Вы успешно зашли в админ-панель!', reply_markup=buttons.admin_btns())
 
-    @bot.message_handler(content_types=['text', 'photo', 'voice'])
+    @bot.message_handler(content_types=['text', 'photo', 'voice', 'video'])
     def txt_msg(message):
-        print(message.voice)
         user_id = message.from_user.id
         user_caption = message.caption
         user_input = message.text
@@ -157,12 +154,12 @@ def main():
                 }
                 if settings[0] is not None and settings[1] is not None:
                     if user_input is not None and (user_photo is None and user_video is None and user_voice is None):
-                        field_name = db_actions.get_all_notion_fields_names(user_id, settings[0])[settings[1]]
+                        types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
                         data = {
                             "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
                             "properties": {
-                                field_name: {
-                                    "title": [
+                                names[settings[1]]: {
+                                    types[settings[1]]: [
                                         {
                                             "text": {
                                                 "content": user_input
@@ -176,13 +173,15 @@ def main():
                                                  json=data)
                         print(response.json())
                     elif user_caption is not None and (user_photo is not None or user_video is not None or user_voice is not None):
-                        photo_url = upload_photo(user_photo, user_voice)
-                        field_name = db_actions.get_all_notion_fields_names(user_id, settings[0])[settings[1]]
+                        photo_url = upload_photo(user_photo, user_voice, user_video)
+                        types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
+                        print(names[settings[1]])
+                        print(types[settings[1]])
                         data = {
                             "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
                             "properties": {
-                                field_name: {
-                                    "title": [
+                                names[settings[1]]: {
+                                    types[settings[1]]: [
                                         {
                                             "text": {
                                                 "content": user_caption
@@ -210,7 +209,7 @@ def main():
                                                  json=data)
                         print(response.json())
                     elif user_input is None and (user_photo is not None or user_video is not None or user_voice is not None):
-                        photo_url = upload_photo(user_photo, user_voice)
+                        photo_url = upload_photo(user_photo, user_voice, user_video)
                         data = {
                             "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
                             "properties": {
@@ -335,6 +334,8 @@ def main():
                                                   'Попробуйте еще раз!', parse_mode='HTML')
                 elif call.data[:11] == 'notions_dbs':
                     db_actions.update_notion_settings(True, int(call.data[11:]), user_id)
+                    auto_index = db_actions.auto_select_field(user_id, int(call.data[11:]))
+                    db_actions.update_notion_settings(False, auto_index, user_id)
                     bot.send_message(user_id, 'Операция совершена успешно')
 
                 elif call.data[:13] == 'notions_props':
@@ -348,7 +349,7 @@ def main():
                         case '1':
                             settings = db_actions.get_notion_settings(user_id)
                             if settings[0] is not None:
-                                names = db_actions.get_all_notion_fields_names(user_id, settings[0])
+                                names = db_actions.get_all_notion_fields_names(user_id, settings[0]).values()
                                 bot.send_message(user_id, 'Выберите поле для записи', reply_markup=buttons.notion_prop_btns(names))
                             else:
                                 bot.send_message(user_id, 'Сначала выберите базу данных')
