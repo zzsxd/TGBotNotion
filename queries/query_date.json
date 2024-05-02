@@ -1,0 +1,10 @@
+{
+  "field": {
+      "type": "date",
+      "date": {
+          "start": "user_input",
+          "end": null,
+          "time_zone": null
+      }
+  }
+}

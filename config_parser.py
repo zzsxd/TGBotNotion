@@ -39,34 +39,12 @@ class ConfigParser:
     def get_config(self):
         return self.__current_config
 
-    def update_faq(self, new_path):
-        self.__current_config['FAQ'] = new_path
-        self.create_conf(self.__current_config)
 
-    def update_contacts(self, new_path):
-        self.__current_config['contacts'] = new_path
-        self.create_conf(self.__current_config)
+class RequestsParser:
+    def __init__(self, paths):
+        super(RequestsParser, self).__init__()
+        self.__paths = paths
 
-    def update_start_msg(self, new_path):
-        self.__current_config['start_msg'] = new_path
-        self.create_conf(self.__current_config)
-
-    def change_contacts(self, new_path):
-        self.__current_config['contacts'] = new_path
-        self.create_conf(self.__current_config)
-
-    def change_faq(self, new_path):
-        self.__current_config['FAQ'] = new_path
-        self.create_conf(self.__current_config)
-
-    def change_start_msg(self, new_path):
-        self.__current_config['start_msg'] = new_path
-        self.create_conf(self.__current_config)
-
-    def change_step(self, new_path):
-        self.__current_config['step_sale'] = new_path
-        self.create_conf(self.__current_config)
-
-    def change_percent(self, new_path):
-        self.__current_config['percent_sale'] = new_path
-        self.create_conf(self.__current_config)
+    def get_query(self, index):
+        with open(self.__paths[index], 'r', encoding='utf-8') as file:
+            return json.loads(file.read())

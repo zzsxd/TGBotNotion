@@ -1,0 +1,11 @@
+{
+  "field": {
+    "type": [
+      {
+        "text": {
+          "content": "user_input"
+        }
+      }
+    ]
+  }
+}

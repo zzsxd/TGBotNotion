@@ -11,11 +11,13 @@ import telebot
 from telebot import types
 from datetime import datetime
 from backend import TempUserData, DbAct
-from config_parser import ConfigParser
+from config_parser import ConfigParser, RequestsParser
 from db import DB
 from frontend import Bot_inline_btns
 
 config_name = 'secrets.json'
+json_paths = ['queries/base_query.json', 'queries/header.json', 'queries/query_date.json',
+              'queries/query_file.json', 'queries/query_text.json',]
 
 
 def give_sub(user_id, user_id_client, sub_type):
@@ -62,6 +64,13 @@ def shorten_url(url):
     return short_url
 
 
+def check_add_note(request, user_id):
+    if request.status_code == 200:
+        bot.send_message(user_id, f'<a href="{request.json()["url"]}">Заметка успешно добавлена!</a>', parse_mode='html')
+    else:
+        bot.send_message(user_id, 'Произошла ошибка при добавлении заметки')
+
+
 def upload_photo(image, voice, video):
     if image is not None:
         photo_id = image[-1].file_id
@@ -78,6 +87,33 @@ def upload_photo(image, voice, video):
         file_info = bot.get_file(video_id)
         file_url = f"https://api.telegram.org/file/bot{config.get_config()['tg_api']}/{file_info.file_path}"
         return shorten_url(file_url)
+
+
+def add_addition_data(user_id):
+    buttons = Bot_inline_btns()
+    if db_actions.get_submit_mods(user_id):
+        if temp_user_data.temp_data(user_id)[user_id][5]:
+            bot.send_message(user_id, 'Что вы хотите добавить?', reply_markup=buttons.additions_btns())
+            temp_user_data.temp_data(user_id)[user_id][5] = True
+            return False
+        else:
+            return True
+
+
+def add_to_query_addition_data(data, user_id, settings):
+    for index, i in enumerate(temp_user_data.temp_data(user_id)[user_id][4]):
+        if i is not None:
+            if index == 0:
+                date_json = json_requests.get_query(2)
+                date_json['field']['date']['start'] = i
+                date_json[db_actions.get_set_field_by_type(user_id,
+                                                           settings[0],
+                                                           'date')] = date_json['field']
+                del date_json['field']
+                data['properties'].update(date_json)
+            elif index == 1:
+                pass
+            temp_user_data.temp_data(user_id)[user_id][4][index] = None
 
 
 def main():
@@ -145,97 +181,84 @@ def main():
                             bot.send_message(user_id, 'Операция успешно завершена')
                         except:
                             bot.send_message(user_id, 'это не число, попробуйте ещё раз')
-                settings = db_actions.get_notion_settings(user_id)
-                print(settings)
-                headers = {
-                    'Authorization': 'Bearer ' + db_actions.get_notion_access_token(user_id),
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2022-06-28'
-                }
-                if settings[0] is not None and settings[1] is not None:
-                    if user_input is not None and (user_photo is None and user_video is None and user_voice is None):
-                        types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
-                        data = {
-                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
-                            "properties": {
-                                names[settings[1]]: {
-                                    types[settings[1]]: [
-                                        {
-                                            "text": {
-                                                "content": user_input
-                                            }
-                                        }
-                                    ]
-                                },
-                            },
-                        }
-                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                 json=data)
-                        print(response.json())
-                    elif user_caption is not None and (user_photo is not None or user_video is not None or user_voice is not None):
-                        photo_url = upload_photo(user_photo, user_voice, user_video)
-                        types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
-                        print(names[settings[1]])
-                        print(types[settings[1]])
-                        data = {
-                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
-                            "properties": {
-                                names[settings[1]]: {
-                                    types[settings[1]]: [
-                                        {
-                                            "text": {
-                                                "content": user_caption
-                                            }
-                                        }
-                                    ]
-                                },
-                                db_actions.get_set_field_by_type(user_id,
-                                                                 settings[0],
-                                                                 'files'): {
-                                    "type": "files",
-                                    "files": [
-                                        {
-                                            "name": photo_url,
-                                            "type": "external",
-                                            "external": {
-                                                "url": photo_url
-                                            }
-                                        }
-                                    ]
-                                },
-                            },
-                        }
-                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                 json=data)
-                        print(response.json())
-                    elif user_input is None and (user_photo is not None or user_video is not None or user_voice is not None):
-                        photo_url = upload_photo(user_photo, user_voice, user_video)
-                        data = {
-                            "parent": {"database_id": db_actions.get_get_field_by_type(user_id, settings[0], 'id')},
-                            "properties": {
-                                db_actions.get_set_field_by_type(user_id,
-                                                                 settings[0],
-                                                                 'files'): {
-                                    "type": "files",
-                                    "files": [
-                                        {
-                                            "name": photo_url,
-                                            "type": "external",
-                                            "external": {
-                                                "url": photo_url
-                                            }
-                                        }
-                                    ]
-                                },
-                            },
-                        }
-                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                 json=data)
-                        print(response.json())
-                else:
-                    bot.send_message(user_id,
-                                     'Сначала нужно настроить параметры для добавления заметок в Notion',
-                                     reply_markup=buttons.choose_notion_dest())
+                    case 6:
+                        try:
+                            datetime.strptime(user_input, '%Y-%m-%d')
+                            temp_user_data.temp_data(user_id)[user_id][0] = None
+                            temp_user_data.temp_data(user_id)[user_id][4][0] = user_input
+                            bot.send_message(user_id, 'Параметр успешно добавлен')
+                        except:
+                            bot.send_message(user_id, 'Дата введена в неправильном формате, попробуйте ещё раз')
+                        temp_user_data.temp_data(user_id)[user_id][5] = False
+                    case 7:
+                        pass
+                    case None:
+                        settings = db_actions.get_notion_settings(user_id)
+                        headers = json_requests.get_query(1)
+                        headers['Authorization'] = f'Bearer {db_actions.get_notion_access_token(user_id)}'
+                        if settings[0] is not None and settings[1] is not None:
+                            types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
+                            data = json_requests.get_query(0)
+                            data['parent']['database_id'] = db_actions.get_get_field_by_type(user_id, settings[0], 'id')
+                            if user_input is not None and (user_photo is None and user_video is None and user_voice is None):
+                                text_json = json_requests.get_query(4)
+                                text_json['field']['type'][0]['text']['content'] = user_input
+                                text_json['field'][names[settings[1]]] = text_json['field']['type']
+                                del text_json['field']['type']
+                                text_json[names[settings[1]]] = text_json['field']
+                                del text_json['field']
+                                data['properties'].update(text_json)
+                                if add_addition_data(user_id):
+                                    add_to_query_addition_data(data, user_id, settings)
+                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                             json=data)
+                                    check_add_note(response, user_id)
+                                    print(response.json())
+                            elif user_caption is not None and (user_photo is not None or user_video is not None or user_voice is not None):
+                                url = upload_photo(user_photo, user_voice, user_video)
+                                text_json = json_requests.get_query(4)
+                                text_json['field']['type'][0]['text']['content'] = user_input
+                                text_json['field'][names[settings[1]]] = text_json['field']['type']
+                                del text_json['field']['type']
+                                text_json[names[settings[1]]] = text_json['field']
+                                del text_json['field']
+                                file_json = json_requests.get_query(3)
+                                file_json['field']['files'][0]['name'] = url
+                                file_json['field']['files'][0]['external']['url'] = url
+                                file_json[db_actions.get_set_field_by_type(user_id,
+                                                                         settings[0],
+                                                                         'files')] = file_json['field']
+                                del file_json['field']
+                                data['properties'].update(text_json)
+                                data['properties'].update(file_json)
+
+                                if add_addition_data(user_id):
+                                    add_to_query_addition_data(data, user_id, settings)
+                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                             json=data)
+                                    check_add_note(response, user_id)
+                                    print(response.json())
+                            elif user_input is None and (user_photo is not None or user_video is not None or user_voice is not None):
+                                url = upload_photo(user_photo, user_voice, user_video)
+                                file_json = json_requests.get_query(3)
+                                file_json['field']['files'][0]['name'] = url
+                                file_json['field']['files'][0]['external']['url'] = url
+                                file_json[db_actions.get_set_field_by_type(user_id,
+                                                                           settings[0],
+                                                                           'files')] = file_json['field']
+                                del file_json['field']
+                                data['properties'].update(file_json)
+
+                                if add_addition_data(user_id):
+                                    add_to_query_addition_data(data, user_id, settings)
+                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                             json=data)
+                                    check_add_note(response, user_id)
+                                    print(response.json())
+            else:
+                bot.send_message(user_id,
+                                 'Сначала нужно настроить параметры для добавления заметок в Notion',
+                                 reply_markup=buttons.choose_notion_dest())
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback(call):
@@ -353,6 +376,25 @@ def main():
                                 bot.send_message(user_id, 'Выберите поле для записи', reply_markup=buttons.notion_prop_btns(names))
                             else:
                                 bot.send_message(user_id, 'Сначала выберите базу данных')
+                        case 2:
+                            bot.send_message(user_id, 'Какой режи добавления заметок вы хотите использовать?', reply_markup=buttons.change_mod())
+                elif call.data[:10] == 'change_mod':
+                    match call.data[10:]:
+                        case '0':
+                            db_actions.change_submit_mod(False, user_id)
+                            bot.send_message(user_id, 'Операция совершена успешно')
+                        case '1':
+                            db_actions.change_submit_mod(True, user_id)
+                            bot.send_message(user_id, 'Операция совершена успешно')
+                elif call.data[:12] == 'add_addition':
+                    match call.data[12:]:
+                        case '0':
+                            temp_user_data.temp_data(user_id)[user_id][0] = 6
+                            bot.send_message(user_id, 'Введите дату в формате (2024-05-01)')
+                        case '1':
+                            temp_user_data.temp_data(user_id)[user_id][0] = 7
+                            bot.send_message(user_id, 'Выберите статус')
+
         else:
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'
                                       'Введите /start', parse_mode='HTML')
@@ -379,6 +421,7 @@ if '__main__' == __name__:
     os_type = platform.system()
     work_dir = os.path.dirname(os.path.realpath(__file__))
     config = ConfigParser(f'{work_dir}/{config_name}', os_type)
+    json_requests = RequestsParser(json_paths)
     temp_user_data = TempUserData()
     db = DB(config.get_config()['db_file_name'], Lock())
     db_actions = DbAct(db, config, config.get_config()['xlsx_path'])

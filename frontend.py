@@ -7,7 +7,7 @@ class Bot_inline_btns:
         self.__markup = types.InlineKeyboardMarkup(row_width=1)
 
     def start_buttons(self):
-        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=615dba0d-2dcd-4e9d-b6c5-d543f495984d&response_type=code&owner=user&redirect_uri=https%3A%2F%2F4502-77-91-103-67.ngrok-free.app")
+        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=457effbf-b79b-429b-8c3f-b7d7d2ec379d&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fbeba-2a00-1fa0-8236-69b3-14a3-14a6-6781-3ca4.ngrok-free.app")
         second = types.InlineKeyboardButton('Готово', callback_data='done')
         t = types.InlineKeyboardButton('Подписка', callback_data='sub')
         self.__markup.add(first, second, t)
@@ -43,6 +43,19 @@ class Bot_inline_btns:
     def choose_notion_dest(self):
         f = types.InlineKeyboardButton('базу данных', callback_data='select_dst0')
         s = types.InlineKeyboardButton('поле', callback_data='select_dst1')
+        rr = types.InlineKeyboardButton('режим работы', callback_data='select_dst12')
+        self.__markup.add(f, s, rr)
+        return self.__markup
+
+    def mods_btns(self):
+        f = types.InlineKeyboardButton('обычный', callback_data='change_mod0')
+        s = types.InlineKeyboardButton('расширенный', callback_data='change_mod1')
+        self.__markup.add(f, s)
+        return self.__markup
+
+    def additions_btns(self):
+        f = types.InlineKeyboardButton('дату', callback_data='add_addition0')
+        s = types.InlineKeyboardButton('статус', callback_data='add_addition1')
         self.__markup.add(f, s)
         return self.__markup
 
