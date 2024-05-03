@@ -90,7 +90,7 @@ def main():
         if command == 'start':
             db_actions.add_user(user_id, message.from_user.first_name, message.from_user.last_name,
                                 f'@{message.from_user.username}')
-            bot.send_message(user_id, 'Привет! Я Notes Bot - бот для заметок!\n\n'
+            bot.send_message(user_id, 'Привет! Я Notion Bot - бот для заметок в Notion!\n\n'
                                       'Для начала тебе нужно <b>авторизоваться</b>\n\n'
                                       'Затем выбрать таблицу, которую используешь в качестве <i>Inbox</i>',
                              reply_markup=buttons.start_buttons(), parse_mode='HTML')
@@ -327,7 +327,8 @@ def main():
                         response = requests.post(url, json=payload, headers=headers)
                         get_notion_links(user_id, response.json())
                         bot.send_message(user_id,
-                                         'Авторизация успешна! Теперь нужно настроить параметры для добавления заметок в Notion',
+                                         'Авторизация успешна! Теперь нужно настроить параметры для добавления '
+                                         'заметок в Notion',
                                          reply_markup=buttons.choose_notion_dest())
                     else:
                         bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
