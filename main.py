@@ -17,7 +17,7 @@ from frontend import Bot_inline_btns
 
 config_name = 'secrets.json'
 json_paths = ['queries/base_query.json', 'queries/header.json', 'queries/query_date.json',
-              'queries/query_file.json', 'queries/query_text.json',]
+              'queries/query_file.json', 'queries/query_text.json', 'queries/query_status.json']
 
 
 def give_sub(user_id, user_id_client, sub_type):
@@ -47,13 +47,17 @@ def add_sub(user_id, sub_type):
 
 def get_notion_links(user_id, data):
     out = list()
+    status = list()
     xyi = {}
     print(data)
     for i in data['results']:
         if i["object"] == "database":
             for g in i['properties'].keys():
+                if i['properties'][g]['type'] == 'status':
+                    for k in i['properties'][g]['status']['options']:
+                        status.append([k['name'], k['color']])
                 xyi.update({i['properties'][g]['type']: g})
-            out.append([i['id'], i['title'][0]['plain_text'], i['url'], xyi])
+            out.append([i['id'], i['title'][0]['plain_text'], i['url'], xyi, status])
             xyi = copy.deepcopy({})
     db_actions.update_notion_db(user_id, out)
 
@@ -68,7 +72,7 @@ def check_add_note(request, user_id):
     if request.status_code == 200:
         bot.send_message(user_id, f'<a href="{request.json()["url"]}">Заметка успешно добавлена!</a>', parse_mode='html')
     else:
-        bot.send_message(user_id, 'Произошла ошибка при добавлении заметки')
+        bot.send_message(user_id, 'Произошла ошибка при добавлении заметки, отсутствует поле в notion api')
 
 
 def upload_photo(image, voice, video):
@@ -89,17 +93,6 @@ def upload_photo(image, voice, video):
         return shorten_url(file_url)
 
 
-def add_addition_data(user_id):
-    buttons = Bot_inline_btns()
-    if db_actions.get_submit_mods(user_id):
-        if temp_user_data.temp_data(user_id)[user_id][5]:
-            bot.send_message(user_id, 'Что вы хотите добавить?', reply_markup=buttons.additions_btns())
-            temp_user_data.temp_data(user_id)[user_id][5] = True
-            return False
-        else:
-            return True
-
-
 def add_to_query_addition_data(data, user_id, settings):
     for index, i in enumerate(temp_user_data.temp_data(user_id)[user_id][4]):
         if i is not None:
@@ -112,7 +105,14 @@ def add_to_query_addition_data(data, user_id, settings):
                 del date_json['field']
                 data['properties'].update(date_json)
             elif index == 1:
-                pass
+                date_json = json_requests.get_query(5)
+                date_json['field']['status']['name'] = i[0]
+                date_json['field']['status']['color'] = i[1]
+                date_json[db_actions.get_set_field_by_type(user_id,
+                                                           settings[0],
+                                                           'status')] = date_json['field']
+                del date_json['field']
+                data['properties'].update(date_json)
             temp_user_data.temp_data(user_id)[user_id][4][index] = None
 
 
@@ -186,75 +186,85 @@ def main():
                             datetime.strptime(user_input, '%Y-%m-%d')
                             temp_user_data.temp_data(user_id)[user_id][0] = None
                             temp_user_data.temp_data(user_id)[user_id][4][0] = user_input
-                            bot.send_message(user_id, 'Параметр успешно добавлен')
+                            db_actions.update_authorized_status(user_id, True)
+                            bot.send_message(user_id, 'Параметр успешно добавлен, можете оставить заметку или выбрать ещё один параметр')
                         except:
                             bot.send_message(user_id, 'Дата введена в неправильном формате, попробуйте ещё раз')
-                        temp_user_data.temp_data(user_id)[user_id][5] = False
-                    case 7:
-                        pass
-                    case None:
-                        settings = db_actions.get_notion_settings(user_id)
-                        headers = json_requests.get_query(1)
-                        headers['Authorization'] = f'Bearer {db_actions.get_notion_access_token(user_id)}'
-                        if settings[0] is not None and settings[1] is not None:
-                            types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
-                            data = json_requests.get_query(0)
-                            data['parent']['database_id'] = db_actions.get_get_field_by_type(user_id, settings[0], 'id')
-                            if user_input is not None and (user_photo is None and user_video is None and user_voice is None):
-                                text_json = json_requests.get_query(4)
-                                text_json['field']['type'][0]['text']['content'] = user_input
-                                text_json['field'][names[settings[1]]] = text_json['field']['type']
-                                del text_json['field']['type']
-                                text_json[names[settings[1]]] = text_json['field']
-                                del text_json['field']
-                                data['properties'].update(text_json)
-                                if add_addition_data(user_id):
-                                    add_to_query_addition_data(data, user_id, settings)
-                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                             json=data)
-                                    check_add_note(response, user_id)
-                                    print(response.json())
-                            elif user_caption is not None and (user_photo is not None or user_video is not None or user_voice is not None):
-                                url = upload_photo(user_photo, user_voice, user_video)
-                                text_json = json_requests.get_query(4)
-                                text_json['field']['type'][0]['text']['content'] = user_input
-                                text_json['field'][names[settings[1]]] = text_json['field']['type']
-                                del text_json['field']['type']
-                                text_json[names[settings[1]]] = text_json['field']
-                                del text_json['field']
-                                file_json = json_requests.get_query(3)
-                                file_json['field']['files'][0]['name'] = url
-                                file_json['field']['files'][0]['external']['url'] = url
-                                file_json[db_actions.get_set_field_by_type(user_id,
-                                                                         settings[0],
-                                                                         'files')] = file_json['field']
-                                del file_json['field']
-                                data['properties'].update(text_json)
-                                data['properties'].update(file_json)
+                    case _:
+                        if db_actions.get_authorized_status(user_id) or not db_actions.get_submit_mods(user_id):
+                            try:
+                                db_actions.update_authorized_status(user_id, False)
+                                settings = db_actions.get_notion_settings(user_id)
+                                headers = json_requests.get_query(1)
+                                headers['Authorization'] = f'Bearer {db_actions.get_notion_access_token(user_id)}'
+                                if settings[0] is not None and settings[1] is not None:
+                                    types, names = zip(*db_actions.get_all_notion_fields_names(user_id, settings[0]).items())
+                                    data = json_requests.get_query(0)
+                                    data['parent']['database_id'] = db_actions.get_get_field_by_type(user_id, settings[0], 'id')
+                                    if user_input is not None and (
+                                            user_photo is None and user_video is None and user_voice is None):
+                                        text_json = json_requests.get_query(4)
+                                        text_json['field']['type'][0]['text']['content'] = user_input
+                                        text_json['field'][types[settings[1]]] = text_json['field']['type']
+                                        del text_json['field']['type']
+                                        text_json[names[settings[1]]] = text_json['field']
+                                        del text_json['field']
+                                        data['properties'].update(text_json)
+                                        print(data)
+                                        add_to_query_addition_data(data, user_id, settings)
+                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                                 json=data)
+                                        check_add_note(response, user_id)
+                                        print(response.json())
+                                    elif user_caption is not None and (
+                                            user_photo is not None or user_video is not None or user_voice is not None):
+                                        url = upload_photo(user_photo, user_voice, user_video)
+                                        text_json = json_requests.get_query(4)
+                                        text_json['field']['type'][0]['text']['content'] = user_caption
+                                        text_json['field'][types[settings[1]]] = text_json['field']['type']
+                                        del text_json['field']['type']
+                                        text_json[names[settings[1]]] = text_json['field']
+                                        del text_json['field']
+                                        file_json = json_requests.get_query(3)
+                                        file_json['field']['files'][0]['name'] = url
+                                        file_json['field']['files'][0]['external']['url'] = url
+                                        file_json[db_actions.get_set_field_by_type(user_id,
+                                                                                   settings[0],
+                                                                                   'files')] = file_json['field']
+                                        del file_json['field']
+                                        data['properties'].update(text_json)
+                                        data['properties'].update(file_json)
+                                        add_to_query_addition_data(data, user_id, settings)
+                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                                 json=data)
+                                        check_add_note(response, user_id)
+                                        print(response.json())
+                                    elif user_input is None and (
+                                            user_photo is not None or user_video is not None or user_voice is not None):
+                                        url = upload_photo(user_photo, user_voice, user_video)
+                                        file_json = json_requests.get_query(3)
+                                        file_json['field']['files'][0]['name'] = url
+                                        file_json['field']['files'][0]['external']['url'] = url
+                                        file_json[db_actions.get_set_field_by_type(user_id,
+                                                                                   settings[0],
+                                                                                   'files')] = file_json['field']
+                                        del file_json['field']
+                                        data['properties'].update(file_json)
+                                        add_to_query_addition_data(data, user_id, settings)
+                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                                                                 json=data)
+                                        check_add_note(response, user_id)
+                                        print(response.json())
+                            except:
+                                temp_user_data.temp_data(user_id)[user_id][4] = copy.deepcopy([None, None])
+                                bot.send_message(user_id, 'Произошла ошибка, отсутствует нужное поле для записи, '
+                                                          'добавьте его в Notion и произведите повторную авторизацию '
+                                                          '/start')
+                if user_input == 'написать заметку':
+                    if db_actions.get_submit_mods(user_id):
+                        temp_user_data.temp_data(user_id)[user_id][0] = 8
+                        bot.send_message(user_id, 'Что вы хотите добавить?', reply_markup=buttons.additions_btns())
 
-                                if add_addition_data(user_id):
-                                    add_to_query_addition_data(data, user_id, settings)
-                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                             json=data)
-                                    check_add_note(response, user_id)
-                                    print(response.json())
-                            elif user_input is None and (user_photo is not None or user_video is not None or user_voice is not None):
-                                url = upload_photo(user_photo, user_voice, user_video)
-                                file_json = json_requests.get_query(3)
-                                file_json['field']['files'][0]['name'] = url
-                                file_json['field']['files'][0]['external']['url'] = url
-                                file_json[db_actions.get_set_field_by_type(user_id,
-                                                                           settings[0],
-                                                                           'files')] = file_json['field']
-                                del file_json['field']
-                                data['properties'].update(file_json)
-
-                                if add_addition_data(user_id):
-                                    add_to_query_addition_data(data, user_id, settings)
-                                    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                             json=data)
-                                    check_add_note(response, user_id)
-                                    print(response.json())
             else:
                 bot.send_message(user_id,
                                  'Сначала нужно настроить параметры для добавления заметок в Notion',
@@ -355,12 +365,19 @@ def main():
                     else:
                         bot.send_message(user_id, '<b>Авторизация не пройдена!</b>\n\n'
                                                   'Попробуйте еще раз!', parse_mode='HTML')
+                elif call.data[:13] == 'choose_status':
+                    settings = db_actions.get_notion_settings(user_id)
+                    data = db_actions.get_get_field_by_type(user_id, settings[0], 'db_status')
+                    temp_user_data.temp_data(user_id)[user_id][0] = None
+                    temp_user_data.temp_data(user_id)[user_id][4][1] = data[int(call.data[13:])]
+                    db_actions.update_authorized_status(user_id, True)
+                    bot.send_message(user_id,
+                                     'Параметр успешно добавлен, можете оставить заметку или выбрать ещё один параметр')
                 elif call.data[:11] == 'notions_dbs':
                     db_actions.update_notion_settings(True, int(call.data[11:]), user_id)
                     auto_index = db_actions.auto_select_field(user_id, int(call.data[11:]))
                     db_actions.update_notion_settings(False, auto_index, user_id)
-                    bot.send_message(user_id, 'Операция совершена успешно')
-
+                    bot.send_message(user_id, 'Операция совершена успешно', reply_markup=buttons.write_note())
                 elif call.data[:13] == 'notions_props':
                     db_actions.update_notion_settings(False, int(call.data[13:]), user_id)
                     bot.send_message(user_id, 'Операция совершена успешно')
@@ -372,12 +389,12 @@ def main():
                         case '1':
                             settings = db_actions.get_notion_settings(user_id)
                             if settings[0] is not None:
-                                names = db_actions.get_all_notion_fields_names(user_id, settings[0]).values()
+                                names = db_actions.get_not_all_notion_fields_names(user_id, settings[0]).values()
                                 bot.send_message(user_id, 'Выберите поле для записи', reply_markup=buttons.notion_prop_btns(names))
                             else:
                                 bot.send_message(user_id, 'Сначала выберите базу данных')
-                        case 2:
-                            bot.send_message(user_id, 'Какой режи добавления заметок вы хотите использовать?', reply_markup=buttons.change_mod())
+                        case '2':
+                            bot.send_message(user_id, 'Какой режим добавления заметок вы хотите использовать?', reply_markup=buttons.mods_btns())
                 elif call.data[:10] == 'change_mod':
                     match call.data[10:]:
                         case '0':
@@ -386,14 +403,15 @@ def main():
                         case '1':
                             db_actions.change_submit_mod(True, user_id)
                             bot.send_message(user_id, 'Операция совершена успешно')
-                elif call.data[:12] == 'add_addition':
+                elif call.data[:12] == 'add_addition' and code == 8:
                     match call.data[12:]:
                         case '0':
                             temp_user_data.temp_data(user_id)[user_id][0] = 6
                             bot.send_message(user_id, 'Введите дату в формате (2024-05-01)')
                         case '1':
-                            temp_user_data.temp_data(user_id)[user_id][0] = 7
-                            bot.send_message(user_id, 'Выберите статус')
+                            settings = db_actions.get_notion_settings(user_id)
+                            data = db_actions.get_get_field_by_type(user_id, settings[0], 'db_status')
+                            bot.send_message(user_id, 'Выберите статус', reply_markup=buttons.choose_statis(data))
 
         else:
             bot.send_message(user_id, '<b>Ошибка!</b>\n\n'

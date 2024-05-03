@@ -7,7 +7,7 @@ class Bot_inline_btns:
         self.__markup = types.InlineKeyboardMarkup(row_width=1)
 
     def start_buttons(self):
-        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=457effbf-b79b-429b-8c3f-b7d7d2ec379d&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fbeba-2a00-1fa0-8236-69b3-14a3-14a6-6781-3ca4.ngrok-free.app")
+        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=8702400a-4a8a-4c1c-8972-c24aa9a06073&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fedbf-78-36-104-173.ngrok-free.app")
         second = types.InlineKeyboardButton('Готово', callback_data='done')
         t = types.InlineKeyboardButton('Подписка', callback_data='sub')
         self.__markup.add(first, second, t)
@@ -43,7 +43,7 @@ class Bot_inline_btns:
     def choose_notion_dest(self):
         f = types.InlineKeyboardButton('базу данных', callback_data='select_dst0')
         s = types.InlineKeyboardButton('поле', callback_data='select_dst1')
-        rr = types.InlineKeyboardButton('режим работы', callback_data='select_dst12')
+        rr = types.InlineKeyboardButton('режим работы', callback_data='select_dst2')
         self.__markup.add(f, s, rr)
         return self.__markup
 
@@ -58,6 +58,20 @@ class Bot_inline_btns:
         s = types.InlineKeyboardButton('статус', callback_data='add_addition1')
         self.__markup.add(f, s)
         return self.__markup
+
+    def write_note(self):
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        product_catalog = types.KeyboardButton('написать заметку')
+        keyboard.add(product_catalog)
+        return keyboard
+
+    def choose_statis(self, data):
+        print(data)
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for index, i in enumerate(data):
+            z = types.InlineKeyboardButton(i[0], callback_data=f'choose_status{index}')
+            markup.add(z)
+        return markup
 
     def notion_db_btns(self, names):
         markup = types.InlineKeyboardMarkup(row_width=1)

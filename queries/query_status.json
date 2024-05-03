@@ -1,0 +1,9 @@
+{
+  "field":{
+     "type":"status",
+     "status":{
+        "name":"user_input",
+        "color":"user_color"
+     }
+  }
+}

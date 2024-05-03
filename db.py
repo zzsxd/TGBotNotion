@@ -29,6 +29,7 @@ class DB:
             notion_token TEXT,
             db_info TEXT,
             submit_mod BOOL,
+            authorized BOOL,
             UNIQUE(user_id)
             )
             ''')
