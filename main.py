@@ -126,10 +126,10 @@ def main():
         if command == 'start':
             db_actions.add_user(user_id, message.from_user.first_name, message.from_user.last_name,
                                 f'@{message.from_user.username}')
-            bot.send_message(user_id, 'Привет! Я Notion Bot - бот для заметок в Notion!\n\n'
-                                      'Для начала тебе нужно <b>авторизоваться</b>\n\n'
-                                      'Затем выбрать таблицу, которую используешь в качестве <i>Inbox</i>',
-                             reply_markup=buttons.start_buttons(), parse_mode='HTML')
+            bot.send_message(user_id, 'Привет!\n'
+                                      '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
+                                      'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.', parse_mode='HTML')
+            bot.send_message(user_id, '🎁Лови <b>1 месяц премиум подписки бесплатно</b>, чтобы ты мог полноценно опробовать свои возможности', reply_markup=buttons.start_buttons(), parse_mode='HTML')
         elif command[:5] == 'start':
             temp_user_data.temp_data(user_id)[user_id][2] = command[11:]
         elif command == 'change':
