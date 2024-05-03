@@ -191,7 +191,7 @@ def main():
                         except:
                             bot.send_message(user_id, 'Дата введена в неправильном формате, попробуйте ещё раз')
                     case _:
-                        if db_actions.get_authorized_status(user_id) or not db_actions.get_submit_mods(user_id):
+                        if db_actions.get_authorized_status(user_id):
                             try:
                                 db_actions.update_authorized_status(user_id, False)
                                 settings = db_actions.get_notion_settings(user_id)
@@ -262,8 +262,10 @@ def main():
                                                           '/start')
                 if user_input == 'написать заметку':
                     if db_actions.get_submit_mods(user_id):
-                        temp_user_data.temp_data(user_id)[user_id][0] = 8
                         bot.send_message(user_id, 'Что вы хотите добавить?', reply_markup=buttons.additions_btns())
+                    else:
+                        db_actions.update_authorized_status(user_id, True)
+                        bot.send_message(user_id, 'Отправьте заметку (фото, видео, текст, голосовое)')
 
             else:
                 bot.send_message(user_id,
@@ -403,7 +405,7 @@ def main():
                         case '1':
                             db_actions.change_submit_mod(True, user_id)
                             bot.send_message(user_id, 'Операция совершена успешно')
-                elif call.data[:12] == 'add_addition' and code == 8:
+                elif call.data[:12] == 'add_addition':
                     match call.data[12:]:
                         case '0':
                             temp_user_data.temp_data(user_id)[user_id][0] = 6

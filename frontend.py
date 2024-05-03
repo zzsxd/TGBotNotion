@@ -7,7 +7,7 @@ class Bot_inline_btns:
         self.__markup = types.InlineKeyboardMarkup(row_width=1)
 
     def start_buttons(self):
-        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=8702400a-4a8a-4c1c-8972-c24aa9a06073&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fedbf-78-36-104-173.ngrok-free.app")
+        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=fbc409aa-7181-4c3c-96e1-86a21d60a062&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fcd3b-2a00-1fa0-86ce-5560-c3a7-8788-6f81-b73d.ngrok-free.app")
         second = types.InlineKeyboardButton('Готово', callback_data='done')
         t = types.InlineKeyboardButton('Подписка', callback_data='sub')
         self.__markup.add(first, second, t)
@@ -66,11 +66,18 @@ class Bot_inline_btns:
         return keyboard
 
     def choose_statis(self, data):
+        out = list()
         print(data)
+        for i in data:
+            if i in out:
+                continue
+            else:
+                out.append(i)
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for index, i in enumerate(data):
-            z = types.InlineKeyboardButton(i[0], callback_data=f'choose_status{index}')
-            markup.add(z)
+        for index, i in enumerate(out):
+            if i[0] not in out:
+                z = types.InlineKeyboardButton(i[0], callback_data=f'choose_status{index}')
+                markup.add(z)
         return markup
 
     def notion_db_btns(self, names):
