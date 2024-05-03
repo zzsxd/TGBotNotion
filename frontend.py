@@ -7,7 +7,7 @@ class Bot_inline_btns:
         self.__markup = types.InlineKeyboardMarkup(row_width=1)
 
     def start_buttons(self):
-        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=c15749b7-42af-4ad0-a33f-c9bff1b85f68&response_type=code&owner=user&redirect_uri=https%3A%2F%2Feb6e-134-19-135-232.ngrok-free.app")
+        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=fbc409aa-7181-4c3c-96e1-86a21d60a062&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fcd3b-2a00-1fa0-86ce-5560-c3a7-8788-6f81-b73d.ngrok-free.app")
         second = types.InlineKeyboardButton('Готово', callback_data='done')
         t = types.InlineKeyboardButton('Подписка', callback_data='sub')
         self.__markup.add(first, second, t)
@@ -41,10 +41,44 @@ class Bot_inline_btns:
         return self.__markup
 
     def choose_notion_dest(self):
-        f = types.InlineKeyboardButton('Базу данных', callback_data='select_dst0')
-        s = types.InlineKeyboardButton('Поле', callback_data='select_dst1')
+        f = types.InlineKeyboardButton('базу данных', callback_data='select_dst0')
+        s = types.InlineKeyboardButton('поле', callback_data='select_dst1')
+        rr = types.InlineKeyboardButton('режим работы', callback_data='select_dst2')
+        self.__markup.add(f, s, rr)
+        return self.__markup
+
+    def mods_btns(self):
+        f = types.InlineKeyboardButton('обычный', callback_data='change_mod0')
+        s = types.InlineKeyboardButton('расширенный', callback_data='change_mod1')
         self.__markup.add(f, s)
         return self.__markup
+
+    def additions_btns(self):
+        f = types.InlineKeyboardButton('дату', callback_data='add_addition0')
+        s = types.InlineKeyboardButton('статус', callback_data='add_addition1')
+        self.__markup.add(f, s)
+        return self.__markup
+
+    def write_note(self):
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        product_catalog = types.KeyboardButton('написать заметку')
+        keyboard.add(product_catalog)
+        return keyboard
+
+    def choose_statis(self, data):
+        out = list()
+        print(data)
+        for i in data:
+            if i in out:
+                continue
+            else:
+                out.append(i)
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for index, i in enumerate(out):
+            if i[0] not in out:
+                z = types.InlineKeyboardButton(i[0], callback_data=f'choose_status{index}')
+                markup.add(z)
+        return markup
 
     def notion_db_btns(self, names):
         markup = types.InlineKeyboardMarkup(row_width=1)

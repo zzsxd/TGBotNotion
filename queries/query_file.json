@@ -1,0 +1,14 @@
+{
+  "field": {
+      "type": "files",
+      "files": [
+          {
+              "name": "user_url",
+              "type": "external",
+              "external": {
+                  "url": "user_url"
+              }
+          }
+      ]
+  }
+}

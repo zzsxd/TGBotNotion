@@ -11,7 +11,7 @@ class TempUserData:
 
     def temp_data(self, user_id):
         if user_id not in self.__user_data.keys():
-            self.__user_data.update({user_id: [None, None, None, None]})
+            self.__user_data.update({user_id: [None, None, None, None, [None, None], True, None]})
         return self.__user_data
 
 
@@ -30,8 +30,8 @@ class DbAct:
             else:
                 is_admin = False
             self.__db.db_write(
-                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None]), '', ''))
+                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info, submit_mod) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None]), '', '', False))
 
     def user_is_existed(self, user_id):
         data = self.__db.db_read('SELECT count(*) FROM users WHERE user_id = ?', (user_id,))
@@ -87,6 +87,30 @@ class DbAct:
     def get_notion_access_token(self, user_id):
         return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
 
+    def update_authorized_status(self, user_id, data):
+        self.__db.db_write('UPDATE users SET authorized = ? WHERE user_id = ?', (data, user_id))
+
+    def get_authorized_status(self, user_id):
+        data = self.__db.db_read('SELECT authorized FROM users WHERE user_id = ?', (user_id, ))
+        if len(data) > 0:
+            if data[0][0] == 1:
+                status = True
+            else:
+                status = False
+            return status
+
+    def change_submit_mod(self, switch, user_id):
+        self.__db.db_write('UPDATE users SET submit_mod = ? WHERE user_id = ?', (switch, user_id))
+
+    def get_submit_mods(self, user_id):
+        data = self.__db.db_read('SELECT submit_mod FROM users WHERE user_id = ?', (user_id,))
+        if len(data) > 0:
+            if data[0][0] == 1:
+                status = True
+            else:
+                status = False
+            return status
+
     def get_notion_settings(self, user_id):
         return json.loads(self.__db.db_read('SELECT notion_settings FROM users WHERE user_id = ?', (user_id, ))[0][0])
 
@@ -111,13 +135,12 @@ class DbAct:
         return names
 
     def auto_select_field(self, user_id, db_index):
-        out = list()
         data = self.get_notion_db(user_id)
         for index, g in enumerate(data[db_index][3].keys()):
             if g in ['title']:
                 return index
 
-    def get_all_notion_fields_names(self, user_id, db_index):
+    def get_not_all_notion_fields_names(self, user_id, db_index):
         out = dict()
         data = self.get_notion_db(user_id)
         for i, g in data[db_index][3].items():
@@ -125,8 +148,15 @@ class DbAct:
                 out.update({i: g})
         return out
 
+    def get_all_notion_fields_names(self, user_id, db_index):
+        out = dict()
+        data = self.get_notion_db(user_id)
+        for i, g in data[db_index][3].items():
+            out.update({i: g})
+        return out
+
     def get_get_field_by_type(self, user_id, db_index, user_search):
-        search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_fields': 3}
+        search = {'id': 0, 'db_name': 1, 'db_link': 2, 'db_fields': 3, 'db_status': 4}
         data = self.get_notion_db(user_id)
         return data[db_index][search[user_search]]
 
