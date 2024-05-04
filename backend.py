@@ -4,6 +4,7 @@ import time
 import json
 import csv
 
+
 class TempUserData:
     def __init__(self):
         super(TempUserData, self).__init__()
@@ -31,7 +32,7 @@ class DbAct:
                 is_admin = False
             self.__db.db_write(
                 'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info, submit_mod) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None]), '', '', False))
+                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None], ensure_ascii=False), '', '', False))
 
     def user_is_existed(self, user_id):
         data = self.__db.db_read('SELECT count(*) FROM users WHERE user_id = ?', (user_id,))
@@ -82,7 +83,7 @@ class DbAct:
         self.__db.db_write('UPDATE users SET notion_token = ? WHERE user_id = ?', (notion_token, user_id))
 
     def update_notion_db(self, user_id, data):
-        self.__db.db_write('UPDATE users SET db_info = ? WHERE user_id = ?', (json.dumps(data), user_id))
+        self.__db.db_write('UPDATE users SET db_info = ? WHERE user_id = ?', (json.dumps(data, ensure_ascii=False), user_id))
 
     def get_notion_access_token(self, user_id):
         return self.__db.db_read('SELECT notion_token FROM users WHERE user_id = ?', (user_id, ))[0][0]
@@ -120,7 +121,7 @@ class DbAct:
             data[0] = settings
         else:
             data[1] = settings
-        self.__db.db_write('UPDATE users SET notion_settings = ? WHERE user_id = ?', (json.dumps(data), user_id))
+        self.__db.db_write('UPDATE users SET notion_settings = ? WHERE user_id = ?', (json.dumps(data, ensure_ascii=False), user_id))
 
     def get_notion_db(self, user_id):
         data = self.__db.db_read('SELECT db_info FROM users WHERE user_id = ?', (user_id, ))
