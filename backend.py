@@ -70,6 +70,9 @@ class DbAct:
     def update_subscription_time(self, user_id, times):
         self.__db.db_write('UPDATE users SET exp_date = ? WHERE user_id = ?', (times, user_id))
 
+    def get_admins(self):
+        return self.__db.db_read('SELECT user_id FROM users WHERE is_admin = 1', ())
+
     def update_subscription_notes(self, user_id, notes_count):
         self.__db.db_write('UPDATE users SET notes_count = ? WHERE user_id = ?', (notes_count, user_id))
 

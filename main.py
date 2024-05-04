@@ -54,6 +54,13 @@ def add_sub(user_id, sub_type):
             db_actions.give_subscription(user_id, time.time() + sub_time[sub_type], sub_type, 30)
 
 
+def ngrok_reg_for_admins():
+    for admin in db_actions.get_admins():
+        bot.send_message(admin[0], 'Бот был перезапущен!\n\n'
+                                   'Необходимо указать в настройках интеграции Notion'
+                                   f' новый redirect_uri - {redirect_url}')
+
+
 def get_notion_links(user_id, data):
     out = list()
     status = list()
@@ -164,12 +171,12 @@ def main():
                                           '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
                                           'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.',
                                  parse_mode='HTML')
-                bot.send_message(user_id, '🎁Лови <b>1 месяц премиум подписки бесплатно</b>, чтобы ты мог полноценно опробовать свои возможности', reply_markup=buttons.start_buttons(), parse_mode='HTML')
+                bot.send_message(user_id, '🎁Лови <b>1 месяц премиум подписки бесплатно</b>, чтобы ты мог полноценно опробовать свои возможности', reply_markup=buttons.start_buttons(redirect_url), parse_mode='HTML')
             else:
                 bot.send_message(user_id, 'Привет!\n'
                                           '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
                                           'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.',
-                                 parse_mode='HTML', reply_markup=buttons.start_buttons())
+                                 parse_mode='HTML', reply_markup=buttons.start_buttons(redirect_url))
             db_actions.add_user(user_id, message.from_user.first_name, message.from_user.last_name,
                                 f'@{message.from_user.username}')
         elif command == 'change':
@@ -403,7 +410,7 @@ def main():
                         body = {
                             "grant_type": "authorization_code",
                             "code": code,
-                            "redirect_uri": config.get_config()['notion_redirect_uri']
+                            "redirect_uri": redirect_url
                         }
                         # Отправьте запрос на сервер авторизации Notion
                         r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
@@ -501,7 +508,11 @@ if '__main__' == __name__:
     db = DB(config.get_config()['db_file_name'], Lock())
     db_actions = DbAct(db, config, config.get_config()['xlsx_path'])
     threading.Thread(target=url_redirect).start()
-    ssh_tunnel = ngrok.connect("5000", "http")
-    print(ssh_tunnel)
+    if config.get_config()['use_config_redirect']:
+        redirect_url = config.get_config()['notion_redirect_uri']
+    else:
+        redirect_url = ngrok.connect("5000", "http").public_url
+        print(redirect_url)
     bot = telebot.TeleBot(config.get_config()['tg_api'])
+    ngrok_reg_for_admins()
     main()
