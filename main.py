@@ -1,6 +1,8 @@
 import base64
 import copy
 import os
+import threading
+from pyngrok import ngrok
 import pyshorteners
 import platform
 import time
@@ -12,37 +14,44 @@ from telebot import types
 from datetime import datetime
 from backend import TempUserData, DbAct
 from config_parser import ConfigParser, RequestsParser
+from flask import Flask, request, redirect
 from db import DB
 from frontend import Bot_inline_btns
 
 config_name = 'secrets.json'
 json_paths = ['queries/base_query.json', 'queries/header.json', 'queries/query_date.json',
               'queries/query_file.json', 'queries/query_text.json', 'queries/query_status.json']
+requests_que = []
+sub_time = {'0': 2629746, '1': 15778476, '2': 31556952, '3': 2629746}
 
 
 def give_sub(user_id, user_id_client, sub_type):
-    match sub_type:
-        case 0:
-            db_actions.give_subscription(user_id_client, time.time() + 2629746, 0)
-        case 1:
-            db_actions.give_subscription(user_id_client, time.time() + 15778476, 1)
-        case 2:
-            db_actions.give_subscription(user_id_client, time.time() + 31556952, 2)
-        case 3:
-            db_actions.give_subscription(user_id_client, time.time() + 2629746, 3, 30)
+    old_data = db_actions.get_eol(user_id_client)
+    if db_actions.check_subscription(user_id_client):
+        if sub_type != 3:
+            db_actions.give_subscription(user_id_client, old_data[0] + sub_time[sub_type], sub_type)
+        else:
+            db_actions.give_subscription(user_id_client, old_data[0] + sub_time[sub_type], sub_type, old_data[1] + 30)
+    else:
+        if sub_type != 3:
+            db_actions.give_subscription(user_id_client, time.time() + sub_time[sub_type], sub_type)
+        else:
+            db_actions.give_subscription(user_id_client, time.time() + sub_time[sub_type], sub_type, 30)
     bot.send_message(user_id, 'Операция успешно завершена')
 
 
 def add_sub(user_id, sub_type):
-    match sub_type:
-        case '0':
-            db_actions.give_subscription(user_id, time.time() + 2629746, 0)
-        case '1':
-            db_actions.give_subscription(user_id, time.time() + 15778476, 1)
-        case '2':
-            db_actions.give_subscription(user_id, time.time() + 31556952, 2)
-        case '3':
-            db_actions.give_subscription(user_id, time.time() + 2629746, 3, 30)
+    old_data = db_actions.get_eol(user_id)
+    if db_actions.check_subscription(user_id):
+        if sub_type != 3:
+            db_actions.give_subscription(user_id, old_data[0] + sub_time[sub_type], sub_type)
+        else:
+            db_actions.give_subscription(user_id, old_data[0] + sub_time[sub_type], sub_type, old_data[1] + 30)
+    else:
+        if sub_type != 3:
+            db_actions.give_subscription(user_id, time.time() + sub_time[sub_type], sub_type)
+        else:
+            db_actions.give_subscription(user_id, time.time() + sub_time[sub_type], sub_type, 30)
 
 
 def get_notion_links(user_id, data):
@@ -93,6 +102,17 @@ def upload_photo(image, voice, video):
         return shorten_url(file_url)
 
 
+def url_redirect():
+    app = Flask(__name__)
+    @app.route('/')
+    def get_parameters():
+        # Get the value of the 'code' parameter from the URL
+        code = request.args.get('code')
+        requests_que.append(code)
+        return redirect(f'{config.get_config()["tg_link"]}')
+    app.run()
+
+
 def add_to_query_addition_data(data, user_id, settings):
     for index, i in enumerate(temp_user_data.temp_data(user_id)[user_id][4]):
         if i is not None:
@@ -116,6 +136,21 @@ def add_to_query_addition_data(data, user_id, settings):
             temp_user_data.temp_data(user_id)[user_id][4][index] = None
 
 
+def send_note(data, user_id, settings, headers):
+    add_to_query_addition_data(data, user_id, settings)
+    response = requests.post('https://api.notion.com/v1/pages', headers=headers,
+                             json=data)
+    check_add_note(response, user_id)
+    print(response.json())
+
+
+def eol_update(user_id):
+    eol_data = db_actions.get_eol(user_id)
+    if eol_data[2] == 3 and not db_actions.user_is_admin(user_id):
+        db_actions.update_subscription_notes(user_id, eol_data[1]-1)
+
+
+
 def main():
     @bot.message_handler(commands=['start', 'admin', 'change'])
     def start_msg(message):
@@ -124,18 +159,19 @@ def main():
         buttons = Bot_inline_btns()
         command = message.text.replace('/', '')
         if command == 'start':
+            if not db_actions.check_subscription(user_id):
+                bot.send_message(user_id, 'Привет!\n'
+                                          '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
+                                          'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.',
+                                 parse_mode='HTML')
+                bot.send_message(user_id, '🎁Лови <b>1 месяц премиум подписки бесплатно</b>, чтобы ты мог полноценно опробовать свои возможности', reply_markup=buttons.start_buttons(), parse_mode='HTML')
+            else:
+                bot.send_message(user_id, 'Привет!\n'
+                                          '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
+                                          'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.',
+                                 parse_mode='HTML', reply_markup=buttons.start_buttons())
             db_actions.add_user(user_id, message.from_user.first_name, message.from_user.last_name,
                                 f'@{message.from_user.username}')
-            bot.send_message(user_id, 'Привет!\n'
-                                      '<b>Я бот для моментальной отправки любого контента из Telegram в Notion.</b>\n\n'
-                                      'Для начала, давай выберем чат из которого я буду отправлять контент в Notion.\n\n'
-                                      'Для <b>регистрации</b> в боте, вам необходимо:\n'
-                                      '- Нажать кнопку "<b>Авторизоваться</b>", затем выбрать <i>вашу страницу</i>, на которой вы хотите оставлять заметки.\n\n'
-                                      '- После выбора страницы, нажмите кнопку "<b>Готово</b>", бот считает информацию о вашей странице и предложит настроить параметры для добавления заметок.\n\n'
-                                      '- Готово, теперь вы можете оставлять заметки!', parse_mode='HTML')
-            bot.send_message(user_id, '🎁Лови <b>1 месяц премиум подписки бесплатно</b>, чтобы ты мог полноценно опробовать свои возможности', reply_markup=buttons.start_buttons(), parse_mode='HTML')
-        elif command[:5] == 'start':
-            temp_user_data.temp_data(user_id)[user_id][2] = command[11:]
         elif command == 'change':
             bot.send_message(user_id, 'Здесь Вы можете изменить параметры для добавления заметок в Notion', reply_markup=buttons.choose_notion_dest())
         elif db_actions.user_is_admin(user_id):
@@ -214,12 +250,8 @@ def main():
                                         text_json[names[settings[1]]] = text_json['field']
                                         del text_json['field']
                                         data['properties'].update(text_json)
-                                        print(data)
-                                        add_to_query_addition_data(data, user_id, settings)
-                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                                 json=data)
-                                        check_add_note(response, user_id)
-                                        print(response.json())
+                                        send_note(data, user_id, settings, headers)
+                                        eol_update(user_id)
                                     elif user_caption is not None and (
                                             user_photo is not None or user_video is not None or user_voice is not None):
                                         url = upload_photo(user_photo, user_voice, user_video)
@@ -238,11 +270,8 @@ def main():
                                         del file_json['field']
                                         data['properties'].update(text_json)
                                         data['properties'].update(file_json)
-                                        add_to_query_addition_data(data, user_id, settings)
-                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                                 json=data)
-                                        check_add_note(response, user_id)
-                                        print(response.json())
+                                        send_note(data, user_id, settings, headers)
+                                        eol_update(user_id)
                                     elif user_input is None and (
                                             user_photo is not None or user_video is not None or user_voice is not None):
                                         url = upload_photo(user_photo, user_voice, user_video)
@@ -254,11 +283,8 @@ def main():
                                                                                    'files')] = file_json['field']
                                         del file_json['field']
                                         data['properties'].update(file_json)
-                                        add_to_query_addition_data(data, user_id, settings)
-                                        response = requests.post('https://api.notion.com/v1/pages', headers=headers,
-                                                                 json=data)
-                                        check_add_note(response, user_id)
-                                        print(response.json())
+                                        send_note(data, user_id, settings, headers)
+                                        eol_update(user_id)
                             except:
                                 temp_user_data.temp_data(user_id)[user_id][4] = copy.deepcopy([None, None])
                                 bot.send_message(user_id, 'Произошла ошибка, отсутствует нужное поле для записи, '
@@ -292,27 +318,26 @@ def main():
                     bot.send_message(user_id, 'Выберите подписку!\n\n'
                                               f'Ваша подписка доступна до: {datetime.utcfromtimestamp(subsc[0]).strftime("%Y-%m-%d %H:%M")}',
                                      reply_markup=buttons.payment_btn())
-            if not db_actions.check_subscription(user_id):
-                if call.data[:12] == 'subscription':
-                    match call.data[12:]:
-                        case '0':
-                            bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', '0',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
-                        case '1':
-                            bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', '1',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
-                        case '2':
-                            bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', '2',
-                                             provider_token=config.get_config()['payment_api'],
-                                             currency='RUB',
-                                             prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
-                        case '3':
-                            bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
-                                             provider_token=config.get_config()['payment_api'], currency='RUB',
-                                             prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
-            else:
+            if call.data[:12] == 'subscription':
+                match call.data[12:]:
+                    case '0':
+                        bot.send_invoice(user_id, '1 месяц - 299₽', 'покупка у Notion Bot', '0',
+                                         provider_token=config.get_config()['payment_api'],
+                                         currency='RUB', prices=[types.LabeledPrice('Оплата товара', 299 * 100)])
+                    case '1':
+                        bot.send_invoice(user_id, '6 месяцев - 1399₽', 'покупка у Notion Bot', '1',
+                                         provider_token=config.get_config()['payment_api'],
+                                         currency='RUB', prices=[types.LabeledPrice('Оплата товара', 1399 * 100)])
+                    case '2':
+                        bot.send_invoice(user_id, '1 год - 2599₽', 'покупка у Notion Bot', '2',
+                                         provider_token=config.get_config()['payment_api'],
+                                         currency='RUB',
+                                         prices=[types.LabeledPrice('Оплата товара', 2599 * 100)])
+                    case '3':
+                        bot.send_invoice(user_id, '30 запросов на 30 дней - 99₽', 'покупка у Notion Bot', '3',
+                                         provider_token=config.get_config()['payment_api'], currency='RUB',
+                                         prices=[types.LabeledPrice('Оплата товара', 99 * 100)])
+            if db_actions.check_subscription(user_id):
                 if db_actions.user_is_admin(user_id):
                     if call.data == 'givelimit':
                         temp_user_data.temp_data(user_id)[user_id][0] = 0
@@ -336,23 +361,29 @@ def main():
                     elif call.data[:3] == 'cnt' and code == 2:
                         give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
                 if call.data == 'done':
-                    encoded = base64.b64encode(
-                        f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
-                            "utf-8")).decode("utf-8")
-                    headers = {
-                        "Accept": "application/json",
-                        "Content-Type": "application/json",
-                        "Authorization": f"Basic {encoded}"
-                    }
-                    body = {
-                        "grant_type": "authorization_code",
-                        "code": temp_user_data.temp_data(user_id)[user_id][2],
-                        "redirect_uri": config.get_config()['notion_redirect_uri']
-                    }
-                    # Отправьте запрос на сервер авторизации Notion
-                    r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
-                    print(r.json())
-                    if r.status_code == 200:
+                    flag = False
+                    for code in requests_que:
+                        encoded = base64.b64encode(
+                            f"{config.get_config()['notion_client_id']}:{config.get_config()['notion_client_secret']}".encode(
+                                "utf-8")).decode("utf-8")
+                        headers = {
+                            "Accept": "application/json",
+                            "Content-Type": "application/json",
+                            "Authorization": f"Basic {encoded}"
+                        }
+                        body = {
+                            "grant_type": "authorization_code",
+                            "code": code,
+                            "redirect_uri": config.get_config()['notion_redirect_uri']
+                        }
+                        # Отправьте запрос на сервер авторизации Notion
+                        r = requests.post("https://api.notion.com/v1/oauth/token", headers=headers, json=body)
+                        print(r.json())
+                        if r.status_code == 200:
+                            requests_que.remove(code)
+                            flag = True
+                            break
+                    if flag:
                         notion_token = r.json()['access_token']
                         db_actions.update_notion_token(notion_token, user_id)
                         url = "https://api.notion.com/v1/search"
@@ -385,22 +416,12 @@ def main():
                     auto_index = db_actions.auto_select_field(user_id, int(call.data[11:]))
                     db_actions.update_notion_settings(False, auto_index, user_id)
                     bot.send_message(user_id, 'Операция совершена успешно', reply_markup=buttons.write_note())
-                elif call.data[:13] == 'notions_props':
-                    db_actions.update_notion_settings(False, int(call.data[13:]), user_id)
-                    bot.send_message(user_id, 'Операция совершена успешно')
                 elif call.data[:10] == 'select_dst':
                     match call.data[10:]:
                         case '0':
                             names = db_actions.get_all_notion_db_names(user_id)
                             bot.send_message(user_id, 'Выберите базу данных', reply_markup=buttons.notion_db_btns(names))
                         case '1':
-                            settings = db_actions.get_notion_settings(user_id)
-                            if settings[0] is not None:
-                                names = db_actions.get_not_all_notion_fields_names(user_id, settings[0]).values()
-                                bot.send_message(user_id, 'Выберите поле для записи', reply_markup=buttons.notion_prop_btns(names))
-                            else:
-                                bot.send_message(user_id, 'Сначала выберите базу данных')
-                        case '2':
                             bot.send_message(user_id, 'Какой режим добавления заметок вы хотите использовать?', reply_markup=buttons.mods_btns())
                 elif call.data[:10] == 'change_mod':
                     match call.data[10:]:
@@ -450,5 +471,8 @@ if '__main__' == __name__:
     temp_user_data = TempUserData()
     db = DB(config.get_config()['db_file_name'], Lock())
     db_actions = DbAct(db, config, config.get_config()['xlsx_path'])
+    threading.Thread(target=url_redirect).start()
+    ssh_tunnel = ngrok.connect("5000", "http")
+    print(ssh_tunnel)
     bot = telebot.TeleBot(config.get_config()['tg_api'])
     main()
