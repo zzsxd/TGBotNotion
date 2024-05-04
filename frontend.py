@@ -7,7 +7,7 @@ class Bot_inline_btns:
         self.__markup = types.InlineKeyboardMarkup(row_width=1)
 
     def start_buttons(self):
-        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=8702400a-4a8a-4c1c-8972-c24aa9a06073&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fe0da-78-36-104-173.ngrok-free.app")
+        first = types.InlineKeyboardButton('Авторизоваться', url="https://api.notion.com/v1/oauth/authorize?client_id=c15749b7-42af-4ad0-a33f-c9bff1b85f68&response_type=code&owner=user&redirect_uri=https%3A%2F%2Ft.me%2Fnbnotesbot")
         second = types.InlineKeyboardButton('Готово', callback_data='done')
         t = types.InlineKeyboardButton('Подписка', callback_data='sub')
         self.__markup.add(first, second, t)
@@ -15,7 +15,14 @@ class Bot_inline_btns:
     def admin_btns(self):
         l = types.InlineKeyboardButton('Выдать лимит', callback_data='givelimit')
         sub = types.InlineKeyboardButton('Выдать подписку', callback_data='givesub')
-        self.__markup.add(l, sub)
+        newsletter = types.InlineKeyboardButton('Создать рассылку', callback_data='newsletter')
+        export = types.InlineKeyboardButton('Экпортировать БД', callback_data='export')
+        self.__markup.add(l, sub, newsletter, export)
+        return self.__markup
+    def newsletter_btns(self):
+        done = types.InlineKeyboardButton('Подтвердить', callback_data='newsready')
+        cancel = types.InlineKeyboardButton('Отменить', callback_data='newscancel')
+        self.__markup.add(done, cancel)
         return self.__markup
 
     def actions_btns(self):
@@ -42,8 +49,7 @@ class Bot_inline_btns:
 
     def choose_notion_dest(self):
         f = types.InlineKeyboardButton('базу данных', callback_data='select_dst0')
-        rr = types.InlineKeyboardButton('режим работы', callback_data='select_dst1')
-        self.__markup.add(f, rr)
+        self.__markup.add(f)
         return self.__markup
 
     def mods_btns(self):

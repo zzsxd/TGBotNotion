@@ -230,6 +230,12 @@ def main():
                             bot.send_message(user_id, 'Параметр успешно добавлен, можете оставить заметку или выбрать ещё один параметр')
                         except:
                             bot.send_message(user_id, 'Дата введена в неправильном формате, попробуйте ещё раз')
+                    case 12:
+                        if user_input is not None:
+                            temp_user_data.temp_data(user_id)[user_id][2] = user_input
+                            bot.send_message(user_id, text='Проверьте ваш текст:\n\n' + user_input, reply_markup=buttons.newsletter_btns())
+                        else:
+                            bot.send_message(message.chat.id, 'Это не текст!')
                     case _:
                         if db_actions.get_authorized_status(user_id):
                             try:
@@ -290,6 +296,7 @@ def main():
                                 bot.send_message(user_id, 'Произошла ошибка, отсутствует нужное поле для записи, '
                                                           'добавьте его в Notion и произведите повторную авторизацию '
                                                           '/start')
+
                 if user_input == 'написать заметку':
                     if db_actions.get_submit_mods(user_id):
                         bot.send_message(user_id, 'Что вы хотите добавить?', reply_markup=buttons.additions_btns())
@@ -360,6 +367,28 @@ def main():
                                 bot.send_message(user_id, 'Введите новое количество доступных заметок')
                     elif call.data[:3] == 'cnt' and code == 2:
                         give_sub(user_id, temp_user_data.temp_data(user_id)[user_id][1], int(call.data[3:]))
+                    elif call.data == 'newsletter':
+                        bot.send_message(user_id, 'Пришлите текст для рассылки!')
+                        temp_user_data.temp_data(user_id)[user_id][0] = 12
+                    elif call.data == 'newsready':
+                        if temp_user_data.temp_data(user_id)[user_id][2] is not None:
+                            userid = db_actions.read_user()
+                            for users in userid:
+                                try:
+                                    bot.send_message(users[0], temp_user_data.temp_data(user_id)[user_id][2])
+                                except:
+                                    bot.send_message(call.message.chat.id, 'Ошибка!')
+                            counter_users = db_actions.read_row()
+                            bot.send_message(user_id, 'Рассылка успешно отправлена!\n\n'
+                                                      f'Рассылку получили {counter_users} пользователя(ей) из {counter_users}')
+                        else:
+                            bot.send_message(call.message.chat.id, 'Это не текст!')
+                    elif call.data == 'newscancel':
+                        bot.send_message(user_id, 'Рассылка отменена', reply_markup=buttons.admin_btns())
+                    elif call.data == 'export':
+                        db_actions.db_export_xlsx()
+                        bot.send_document(call.message.chat.id, open(config.get_config()['xlsx_path'], 'rb'))
+                        os.remove(config.get_config()['xlsx_path'])
                 if call.data == 'done':
                     flag = False
                     for code in requests_que:

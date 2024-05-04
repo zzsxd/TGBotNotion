@@ -1,8 +1,9 @@
-
 import os
+import datetime
 import time
 import json
-import csv
+import pandas as pd
+from openpyxl import load_workbook
 
 
 class TempUserData:
@@ -21,7 +22,7 @@ class DbAct:
         super(DbAct, self).__init__()
         self.__db = db
         self.__config = config
-        self.__fields = ['Имя', 'Фамилия', 'Никнейм', 'Номер телефона']
+        self.__fields = ['ID пользователя', 'Nickname пользователя', 'Дата регистрации', 'Лимит запросов', 'Дата действия подпики',]
         self.__dump_path_xlsx = path_xlsx
 
     def add_user(self, user_id, first_name, last_name, nick_name):
@@ -31,8 +32,8 @@ class DbAct:
             else:
                 is_admin = False
             self.__db.db_write(
-                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info, submit_mod) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None], ensure_ascii=False), '', '', False))
+                'INSERT INTO users (user_id, first_name, last_name, nick_name, is_admin, exp_date, notes_count, subscription_type, notion_settings, notion_token, db_info, submit_mod, date_registration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (user_id, first_name, last_name, nick_name, is_admin, time.time()+2592000, 30, 3, json.dumps([None, None], ensure_ascii=False), '', '', False, datetime.datetime.now()))
 
     def user_is_existed(self, user_id):
         data = self.__db.db_read('SELECT count(*) FROM users WHERE user_id = ?', (user_id,))
@@ -164,3 +165,23 @@ class DbAct:
     def get_set_field_by_type(self, user_id, db_index, field_type):
         data = self.get_notion_db(user_id)
         return data[db_index][3][field_type]
+
+    def read_user(self):
+        return self.__db.db_read('SELECT user_id FROM users', ())
+
+    def read_row(self):
+        return self.__db.db_read('SELECT COUNT(*) FROM users', ())[0][0]
+
+
+    def db_export_xlsx(self):
+        d = {'ID пользователя': [], 'Nickname пользователя': [], 'Дата регистрации': [], 'Лимит запросов': [], 'Дата действия подпики': [],}
+        users = self.__db.db_read('SELECT user_id, nick_name, date_registration, notes_count, exp_date FROM users', ())
+        if len(users) > 0:
+            for user in users:
+                for info in range(len(list(user))):
+                    if info == 4:
+                        d[self.__fields[info]].append(datetime.datetime.fromtimestamp(user[info]).strftime('%Y-%m-%d %H:%M:%S'))
+                    else:
+                        d[self.__fields[info]].append(user[info])
+            df = pd.DataFrame(d)
+            df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='пользователи', index=False)

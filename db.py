@@ -30,6 +30,7 @@ class DB:
             db_info TEXT,
             submit_mod BOOL,
             authorized BOOL,
+            date_registration DATE,
             UNIQUE(user_id)
             )
             ''')
